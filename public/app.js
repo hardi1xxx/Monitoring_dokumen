@@ -192,8 +192,9 @@ function showStatusDetail(status) {
   const grouped = new Map();
 
   rows.forEach(rec => {
-    const label = rec.pmta || rec.location || rec.menu || '-';
-    const key = `${label}||${rec.ihld || ''}`;
+    const labelBase = rec.pmta || rec.location || rec.menu || '-';
+    const label = rec.ihld ? `${labelBase} [${rec.ihld}]` : labelBase;
+    const key = `${labelBase}||${rec.ihld || ''}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.value += rec.value;
@@ -201,7 +202,6 @@ function showStatusDetail(status) {
     } else {
       grouped.set(key, {
         label,
-        ihld: rec.ihld,
         value: rec.value,
         count: 1
       });
@@ -239,11 +239,13 @@ function renderStatusCards(statusGroups) {
     const rowMap = new Map();
     g.items.forEach(item => {
       const key = item.pmta || item.location || item.menu || '-';
+      const labelBase = item.location || item.pmta || item.menu || '-';
+      const label = item.ihld ? `${labelBase} [${item.ihld}]` : labelBase;
       const existing = rowMap.get(key);
       if (existing) {
         existing.value += item.value;
       } else {
-        const row = { label: key, value: item.value };
+        const row = { label, value: item.value };
         rowMap.set(key, row);
         groupedRows.push(row);
       }
