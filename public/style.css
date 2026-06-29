@@ -288,8 +288,8 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(260px, 1fr));
   gap: 12px;
-  align-items: start;
-  grid-auto-rows: minmax(min-content, max-content);
+  align-items: stretch;
+  grid-auto-rows: 1fr;
 }
 
 .status-card .header {
@@ -308,14 +308,12 @@ body {
 }
 
 .status-card {
+  display: flex;
+  flex-direction: column;
   border-radius: 12px;
   padding: 14px 16px;
   color: var(--text-dark);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.status-card.shift-up {
-  transform: translateY(-16px);
+  transition: box-shadow 0.2s ease;
 }
 
 .status-card:hover {
@@ -371,7 +369,7 @@ body {
 .status-card .amount { font-size: 19px; font-weight: 800; margin: 2px 0; }
 .status-card .count { font-size: 11.5px; opacity: 0.85; margin-bottom: 8px; }
 
-.status-card .rows { display: flex; flex-direction: column; gap: 5px; max-height: 150px; overflow-y: auto; }
+.status-card .rows { display: flex; flex-direction: column; gap: 5px; flex: 1 1 auto; overflow-y: auto; }
 .status-card .row-item {
   display: flex;
   justify-content: space-between;

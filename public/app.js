@@ -192,9 +192,9 @@ function showStatusDetail(status) {
   const grouped = new Map();
 
   rows.forEach(rec => {
-    const labelBase = rec.pmta || rec.location || rec.menu || '-';
-    const label = rec.ihld ? `${labelBase} [${rec.ihld}]` : labelBase;
-    const key = `${labelBase}||${rec.ihld || ''}`;
+    const labelBase = rec.pmta || rec.menu || '-';
+    const label = rec.pmta ? `${rec.pmta}${rec.location ? ` [${rec.location}]` : ''}` : (rec.location || rec.menu || '-');
+    const key = `${rec.pmta || '-'}||${rec.location || ''}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.value += rec.value;
@@ -210,7 +210,7 @@ function showStatusDetail(status) {
 
   const rowsHtml = Array.from(grouped.values()).map(item => `
     <div class="detail-row">
-      <span>${item.label}${item.ihld ? ` • ${item.ihld}` : ''}</span>
+      <span>${item.label}</span>
       <span>${fmtMoney(item.value)} (${item.count} LOP)</span>
     </div>
   `).join('');
@@ -238,9 +238,8 @@ function renderStatusCards(statusGroups) {
     const groupedRows = [];
     const rowMap = new Map();
     g.items.forEach(item => {
-      const key = item.pmta || item.location || item.menu || '-';
-      const labelBase = item.location || item.pmta || item.menu || '-';
-      const label = item.ihld ? `${labelBase} [${item.ihld}]` : labelBase;
+      const key = item.pmta || '-';
+      const label = item.pmta || '-';
       const existing = rowMap.get(key);
       if (existing) {
         existing.value += item.value;
@@ -257,11 +256,6 @@ function renderStatusCards(statusGroups) {
         <span>${fmtMoney(item.value)}</span>
       </div>
     `).join('');
-
-    const isShiftCard = /^\s*06\b|\bApproval Actual UAT\b/i.test(g.status);
-    if (isShiftCard) {
-      card.classList.add('shift-up');
-    }
 
     card.innerHTML = `
       <div class="header">
