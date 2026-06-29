@@ -198,7 +198,7 @@ function renderStatusCards(statusGroups) {
 
     const groupedRows = [];
     const rowMap = new Map();
-    g.items.slice(0, 5).forEach(item => {
+    g.items.forEach(item => {
       const key = item.subStatus || item.menu || '-';
       const existing = rowMap.get(key);
       if (existing) {
