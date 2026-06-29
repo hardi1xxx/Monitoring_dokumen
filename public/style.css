@@ -288,8 +288,8 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(260px, 1fr));
   gap: 12px;
-  align-items: stretch;
-  grid-auto-rows: 1fr;
+  align-items: start;
+  grid-auto-rows: minmax(min-content, max-content);
 }
 
 .status-card .header {
