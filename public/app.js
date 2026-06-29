@@ -99,6 +99,8 @@ function computeStatusGroups(records) {
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
+  const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
+  const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
 
   const totalPotensi = records.reduce((s, r) => s + r.value, 0);
   document.getElementById('statPotensi').textContent = 'Rp ' + fmtMoney(totalPotensi);
@@ -108,7 +110,7 @@ function render() {
 
   renderProgressOverview(statusGroups, records.length);
   renderStatusTable(statusGroups);
-  renderStatusCards(statusGroups);
+  renderStatusCards(summaryGroups);
 }
 
 function renderProgressOverview(statusGroups, totalCount) {

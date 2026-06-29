@@ -8,12 +8,14 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 
 // Column letters as requested:
 // B = Menu / Project grouping (kiri sidebar)
-// K = Nilai (jumlah / value, summed)
+// K = Nilai/jumlah (summed)
 // E = PM AREA progress (status yang ditampilkan sebagai progress)
+// F = Sub status PM TA (jika tersedia di sheet)
 const COL = {
   MENU: 1,   // B -> index 1 (0-based)
   VALUE: 10, // K -> index 10
-  STATUS: 4  // E -> index 4 (0-based)
+  STATUS: 17, // R -> index 17 (0-based)
+  SUB_STATUS: 4 // e -> index 4 (0-based)
 };
 
 function colLetterToIndex(letter) {
@@ -99,12 +101,20 @@ async function getDashboardData() {
   const header = rows[0];
   const dataRows = rows.slice(1).filter(r => r && r.length > 0 && r.join('').trim() !== '');
 
-  const records = dataRows.map(r => ({
-    menu: (r[COL.MENU] || '').toString().trim(),
-    value: parseNumber(r[COL.VALUE]),
-    status: (r[COL.STATUS] || '').toString().trim(),
-    raw: r
-  })).filter(rec => rec.menu !== '' || rec.status !== '');
+  const records = dataRows.map(r => {
+    const status = (r[COL.STATUS] || '').toString().trim();
+    const subStatus = (r[COL.SUB_STATUS] || '').toString().trim();
+    const hasPMTA = /PM\s*TA/i.test(subStatus) || /PM\s*TA/i.test(r.join(' '));
+
+    return {
+      menu: (r[COL.MENU] || '').toString().trim(),
+      value: parseNumber(r[COL.VALUE]),
+      status,
+      subStatus,
+      hasPMTA,
+      raw: r
+    };
+  }).filter(rec => rec.menu !== '' || rec.status !== '');
 
   // Unique menus (sidebar) preserving first-seen order
   const menuSet = [];
