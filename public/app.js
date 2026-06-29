@@ -192,7 +192,7 @@ function showStatusDetail(status) {
   const grouped = new Map();
 
   rows.forEach(rec => {
-    const label = rec.location || rec.pmta || rec.menu || '-';
+    const label = rec.pmta || rec.location || rec.menu || '-';
     const key = `${label}||${rec.ihld || ''}`;
     const existing = grouped.get(key);
     if (existing) {
@@ -238,7 +238,7 @@ function renderStatusCards(statusGroups) {
     const groupedRows = [];
     const rowMap = new Map();
     g.items.forEach(item => {
-      const key = item.location || item.pmta || item.menu || '-';
+      const key = item.pmta || item.location || item.menu || '-';
       const existing = rowMap.get(key);
       if (existing) {
         existing.value += item.value;
