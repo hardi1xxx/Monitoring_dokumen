@@ -1,5 +1,5 @@
-const { google } = require('googleapis');
 const NodeCache = require('node-cache');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const cache = new NodeCache({ stdTTL: 120 }); // cache 2 minutes
 
@@ -24,40 +24,40 @@ function colLetterToIndex(letter) {
   return result - 1;
 }
 
-function getAuth() {
-  // Supports either a JSON string in GOOGLE_SERVICE_ACCOUNT_JSON
-  // or individual GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY env vars.
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    return new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    });
-  }
-
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n')
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-  });
-}
-
 async function fetchRawRows() {
   const cached = cache.get('raw_rows');
   if (cached) return cached;
 
-  const auth = getAuth();
-  const sheets = google.sheets({ version: 'v4', auth });
+  // Fetch from public Google Sheets CSV export (no authentication required)
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+  
+  const response = await fetch(csvUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sheet: ${response.statusText}`);
+  }
 
-  const range = `${SHEET_NAME}!A1:Z10000`;
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range
-  });
+  const csv = await response.text();
+  const rows = csv.split('\n').map(line => {
+    // Parse CSV line properly handling quotes and commas
+    const result = [];
+    let current = '';
+    let insideQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        insideQuotes = !insideQuotes;
+      } else if (char === ',' && !insideQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }).filter(row => row.some(cell => cell !== ''));
 
-  const rows = res.data.values || [];
   cache.set('raw_rows', rows);
   return rows;
 }
