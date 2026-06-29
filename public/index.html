@@ -7,9 +7,10 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <button id="showSidebarBtn" class="show-sidebar-btn" style="display:none;">☰</button>
   <div class="app-shell">
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <span class="bars">📶</span>
         <div>
@@ -17,6 +18,7 @@
           <div class="brand-sub">Monitoring Dokumen</div>
         </div>
       </div>
+      <button id="toggleSidebar" class="toggle-sidebar" title="Hide/Show Menu">☰</button>
       <nav id="sidebarMenu" class="sidebar-menu">
         <button class="menu-item active" data-menu="__all__">
           <span class="menu-icon">🏠</span> Dashboard

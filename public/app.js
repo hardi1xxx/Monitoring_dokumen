@@ -159,8 +159,13 @@ function renderStatusTable(statusGroups) {
 function renderStatusCards(statusGroups) {
   const container = document.getElementById('statusCards');
   container.innerHTML = '';
-  statusGroups.forEach((g, i) => {
-    const color = PALETTE[i % PALETTE.length];
+  
+  // Limit to 3 statuses and reverse order (show from last to first)
+  const limitedGroups = statusGroups.slice(0, 3).reverse();
+  
+  limitedGroups.forEach((g, i) => {
+    const originalIndex = statusGroups.indexOf(g);
+    const color = PALETTE[originalIndex % PALETTE.length];
     const card = document.createElement('div');
     card.className = 'status-card';
     card.style.background = color.bg;
@@ -174,7 +179,7 @@ function renderStatusCards(statusGroups) {
 
     card.innerHTML = `
       <div class="header">
-        <span class="badge" style="background:${color.accent}">${i + 1}</span>
+        <span class="badge" style="background:${color.accent}">${originalIndex + 1}</span>
         <span>${g.status}</span>
       </div>
       <div class="amount" style="color:${color.accent}">Rp ${fmtMoney(g.total)}</div>
@@ -191,6 +196,33 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
   document.getElementById('dashboardContent').style.display = 'none';
   await loadData();
 });
+
+// Toggle sidebar
+const toggleSidebarBtn = document.getElementById('toggleSidebar');
+const showSidebarBtn = document.getElementById('showSidebarBtn');
+const sidebar = document.getElementById('sidebar');
+const appShell = document.querySelector('.app-shell');
+
+toggleSidebarBtn.addEventListener('click', () => {
+  sidebar.classList.toggle('collapsed');
+  appShell.classList.toggle('sidebar-collapsed');
+  showSidebarBtn.style.display = sidebar.classList.contains('collapsed') ? 'flex' : 'none';
+  localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+});
+
+showSidebarBtn.addEventListener('click', () => {
+  sidebar.classList.remove('collapsed');
+  appShell.classList.remove('sidebar-collapsed');
+  showSidebarBtn.style.display = 'none';
+  localStorage.setItem('sidebarCollapsed', 'false');
+});
+
+// Restore sidebar state from localStorage
+if (localStorage.getItem('sidebarCollapsed') === 'true') {
+  sidebar.classList.add('collapsed');
+  appShell.classList.add('sidebar-collapsed');
+  showSidebarBtn.style.display = 'flex';
+}
 
 loadData();
 setInterval(loadData, 5 * 60 * 1000); // auto refresh every 5 minutes
