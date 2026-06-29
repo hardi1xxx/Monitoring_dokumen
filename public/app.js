@@ -21,6 +21,17 @@ function fmtNumber(n) {
   return Number(n).toLocaleString('id-ID');
 }
 
+function getStatusDisplay(status) {
+  const text = (status || '').toString().trim();
+  if (!text) return { label: '-', title: '' };
+
+  const normalized = text.replace(/^\s*\d+(?:\.\d+)?\s*\.?\s*/, '');
+  return {
+    label: text,
+    title: normalized ? `(${normalized})` : ''
+  };
+}
+
 async function loadData() {
   try {
     const res = await fetch('/api/dashboard');
@@ -108,10 +119,13 @@ function renderProgressOverview(statusGroups, totalCount) {
   const summaryWrap = document.createElement('div');
   summaryWrap.className = 'progress-summary';
 
+  const topStatus = statusGroups[0];
+  const topStatusDisplay = topStatus ? getStatusDisplay(topStatus.status) : { label: '-', title: '' };
+
   const cards = [
     { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '' },
     { icon: '🏷️', label: 'JUMLAH STATUS', val: statusGroups.length, sub: 'Status Smile' },
-    { icon: '🥇', label: 'STATUS TERBANYAK', val: statusGroups[0] ? statusGroups[0].count : 0, sub: statusGroups[0] ? statusGroups[0].status : '-' },
+    { icon: '🥇', label: 'STATUS TERBANYAK', val: topStatusDisplay.label, sub: topStatusDisplay.title || (topStatus ? topStatus.status : '-') },
     { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '' },
   ];
 
@@ -159,12 +173,11 @@ function renderStatusTable(statusGroups) {
 function renderStatusCards(statusGroups) {
   const container = document.getElementById('statusCards');
   container.innerHTML = '';
-  
-  // Limit to 3 statuses and reverse order (show from last to first)
-  const limitedGroups = statusGroups.slice(0, 3).reverse();
-  
-  limitedGroups.forEach((g, i) => {
-    const originalIndex = statusGroups.indexOf(g);
+
+  const orderedGroups = [...statusGroups].reverse();
+
+  orderedGroups.forEach((g) => {
+    const originalIndex = statusGroups.findIndex(group => group.status === g.status);
     const color = PALETTE[originalIndex % PALETTE.length];
     const card = document.createElement('div');
     card.className = 'status-card';

@@ -9,11 +9,11 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 // Column letters as requested:
 // B = Menu / Project grouping (kiri sidebar)
 // K = Nilai (jumlah / value, summed)
-// R = Status Smile (status yang ditampilkan sebagai progress)
+// E = PM AREA progress (status yang ditampilkan sebagai progress)
 const COL = {
   MENU: 1,   // B -> index 1 (0-based)
   VALUE: 10, // K -> index 10
-  STATUS: 17 // R -> index 17
+  STATUS: 4  // E -> index 4 (0-based)
 };
 
 function colLetterToIndex(letter) {
