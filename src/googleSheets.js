@@ -3,8 +3,8 @@ const NodeCache = require('node-cache');
 
 const cache = new NodeCache({ stdTTL: 120 }); // cache 2 minutes
 
-const SPREADSHEET_ID = process.env.SHEET_ID || '1gKM47QvbzO7p6BdwgV1oORCDaJSbAKk35hLPPKxx464';
-const SHEET_NAME = process.env.SHEET_NAME || 'Data Loker';
+const SPREADSHEET_ID = process.env.SHEET_ID || '1MqKFY3mn7-Qa2xn9kslKPKYCF15ONWPf71_dZuIF458';
+const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 
 // Column letters as requested:
 // B = Menu / Project grouping (kiri sidebar)
