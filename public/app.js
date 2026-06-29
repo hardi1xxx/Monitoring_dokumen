@@ -187,7 +187,7 @@ function renderStatusCards(statusGroups) {
 
     const rowsHtml = g.items.slice(0, 5).map(item => `
       <div class="row-item">
-        <span>${item.menu || '-'}</span>
+        <span>${item.subStatus || item.menu || '-'}</span>
         <span>${fmtMoney(item.value)}</span>
       </div>
     `).join('');
