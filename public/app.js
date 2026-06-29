@@ -171,16 +171,53 @@ function renderStatusTable(statusGroups) {
   statusGroups.forEach((g, i) => {
     const tr = document.createElement('tr');
     const color = PALETTE[i % PALETTE.length].accent;
+    tr.className = /^\s*00\b|\bDrop\b/i.test(g.status) ? 'clickable-status' : '';
     tr.innerHTML = `
       <td><span class="status-dot" style="background:${color}"></span>${g.status}</td>
       <td>${fmtNumber(g.count)}</td>
       <td style="color:${color}; font-weight:600; text-align:right;">Rp ${fmtMoney(g.total)}</td>
     `;
+    tr.addEventListener('click', () => {
+      if (/^\s*00\b|\bDrop\b/i.test(g.status)) {
+        showStatusDetail(g.status);
+      }
+    });
     tbody.appendChild(tr);
   });
   if (statusGroups.length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">Tidak ada data</td></tr>';
   }
+}
+
+function showStatusDetail(status) {
+  const detailPanel = document.getElementById('statusDetailPanel');
+  const allRecords = getFilteredRecords();
+  const rows = allRecords.filter(r => String(r.status || '').trim() === String(status).trim());
+  const grouped = new Map();
+
+  rows.forEach(rec => {
+    const key = rec.subStatus || rec.menu || '-';
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.value += rec.value;
+      existing.count += 1;
+    } else {
+      grouped.set(key, { label: key, value: rec.value, count: 1 });
+    }
+  });
+
+  const rowsHtml = Array.from(grouped.values()).map(item => `
+    <div class="detail-row">
+      <span>${item.label}</span>
+      <span>${fmtMoney(item.value)} (${item.count} LOP)</span>
+    </div>
+  `).join('');
+
+  detailPanel.innerHTML = `
+    <h3>Detail ${status}</h3>
+    ${rowsHtml || '<div class="detail-row">Tidak ada data untuk status ini.</div>'}
+  `;
+  detailPanel.style.display = 'block';
 }
 
 function renderStatusCards(statusGroups) {
@@ -216,6 +253,11 @@ function renderStatusCards(statusGroups) {
         <span>${fmtMoney(item.value)}</span>
       </div>
     `).join('');
+
+    const isShiftCard = /^\s*06\b|\bApproval Actual UAT\b/i.test(g.status);
+    if (isShiftCard) {
+      card.classList.add('shift-up');
+    }
 
     card.innerHTML = `
       <div class="header">

@@ -279,12 +279,14 @@ body {
   padding: 6px 4px;
 }
 .status-table td { padding: 7px 4px; border-bottom: 1px solid #f0f1f6; }
+.status-table tr.clickable-status { cursor: pointer; }
+.status-table tr.clickable-status:hover { background: rgba(15,27,76,0.03); }
 .status-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
 
 /* Status cards (right column) */
 .status-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
   gap: 14px;
   align-items: start;
   grid-auto-rows: minmax(min-content, max-content);
@@ -294,6 +296,41 @@ body {
   border-radius: 12px;
   padding: 14px 16px;
   color: var(--text-dark);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.status-card.shift-up {
+  transform: translateY(-16px);
+}
+
+.status-card:hover {
+  box-shadow: 0 10px 20px rgba(15,27,76,0.12);
+}
+
+.status-detail-panel {
+  margin-top: 16px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 6px rgba(15,27,76,0.08);
+  font-size: 13px;
+}
+
+.status-detail-panel h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.status-detail-panel .detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f1f6;
+}
+
+.status-detail-panel .detail-row:last-child {
+  border-bottom: none;
 }
 
 
