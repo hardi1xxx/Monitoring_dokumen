@@ -83,6 +83,11 @@ function getFilteredRecords() {
   return dashboardData.records.filter(r => r.menu === currentMenu);
 }
 
+function parseStatusOrder(status) {
+  const match = String(status || '').match(/^\s*(\d+)/);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
 function computeStatusGroups(records) {
   const map = new Map();
   records.forEach(rec => {
@@ -93,7 +98,12 @@ function computeStatusGroups(records) {
     e.total += rec.value;
     e.items.push(rec);
   });
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  return Array.from(map.values()).sort((a, b) => {
+    const orderA = parseStatusOrder(a.status);
+    const orderB = parseStatusOrder(b.status);
+    if (orderA !== orderB) return orderA - orderB;
+    return a.status.localeCompare(b.status);
+  });
 }
 
 function render() {
@@ -121,13 +131,14 @@ function renderProgressOverview(statusGroups, totalCount) {
   const summaryWrap = document.createElement('div');
   summaryWrap.className = 'progress-summary';
 
-  const topStatus = statusGroups[0];
-  const topStatusDisplay = topStatus ? getStatusDisplay(topStatus.status) : { label: '-', title: '' };
+  const bastGroup = statusGroups.find(g => /^\s*08\b|\bBAST\b/i.test(g.status));
+  const bastValue = bastGroup ? bastGroup.total : 0;
+  const bastLabel = bastGroup ? 'BAST' : '-';
 
   const cards = [
     { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '' },
     { icon: '🏷️', label: 'JUMLAH STATUS', val: statusGroups.length, sub: 'Status Smile' },
-    { icon: '🥇', label: 'STATUS TERBANYAK', val: topStatusDisplay.label, sub: topStatusDisplay.title || (topStatus ? topStatus.status : '-') },
+    { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)' },
     { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '' },
   ];
 
@@ -185,9 +196,23 @@ function renderStatusCards(statusGroups) {
     card.className = 'status-card';
     card.style.background = color.bg;
 
-    const rowsHtml = g.items.slice(0, 5).map(item => `
+    const groupedRows = [];
+    const rowMap = new Map();
+    g.items.slice(0, 5).forEach(item => {
+      const key = item.subStatus || item.menu || '-';
+      const existing = rowMap.get(key);
+      if (existing) {
+        existing.value += item.value;
+      } else {
+        const row = { label: key, value: item.value };
+        rowMap.set(key, row);
+        groupedRows.push(row);
+      }
+    });
+
+    const rowsHtml = groupedRows.map(item => `
       <div class="row-item">
-        <span>${item.subStatus || item.menu || '-'}</span>
+        <span>${item.label}</span>
         <span>${fmtMoney(item.value)}</span>
       </div>
     `).join('');
