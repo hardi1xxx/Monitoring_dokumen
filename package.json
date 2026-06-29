@@ -1,0 +1,20 @@
+{
+  "name": "telkom-akses-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard Monitoring Dokumen - Telkom Akses (Google Sheets powered, deploy on Railway)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "google-auth-library": "^9.11.0",
+    "googleapis": "^140.0.0",
+    "dotenv": "^16.4.5",
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
