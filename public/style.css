@@ -286,8 +286,8 @@ body {
 /* Status cards (right column) */
 .status-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 10px;
   align-items: start;
   grid-auto-rows: minmax(min-content, max-content);
 }

@@ -9,13 +9,17 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 // Column letters as requested:
 // B = Menu / Project grouping (kiri sidebar)
 // K = Nilai/jumlah (summed)
-// E = PM AREA progress (status yang ditampilkan sebagai progress)
-// F = Sub status PM TA (jika tersedia di sheet)
+// E = PM TA (sub status)
+// F = ID IHLD
+// H = Nama lokasi
+// R = Status Smile
 const COL = {
-  MENU: 1,   // B -> index 1 (0-based)
-  VALUE: 10, // K -> index 10
-  STATUS: 17, // R -> index 17 (0-based)
-  SUB_STATUS: 4 // e -> index 4 (0-based)
+  MENU: 1,      // B -> index 1 (0-based)
+  VALUE: 10,    // K -> index 10
+  PM_TA: 4,     // E -> index 4
+  IHLD: 5,      // F -> index 5
+  LOCATION: 7,  // H -> index 7
+  STATUS: 17    // R -> index 17
 };
 
 function colLetterToIndex(letter) {
@@ -103,14 +107,18 @@ async function getDashboardData() {
 
   const records = dataRows.map(r => {
     const status = (r[COL.STATUS] || '').toString().trim();
-    const subStatus = (r[COL.SUB_STATUS] || '').toString().trim();
-    const hasPMTA = /PM\s*TA/i.test(subStatus) || /PM\s*TA/i.test(r.join(' '));
+    const pmta = (r[COL.PM_TA] || '').toString().trim();
+    const ihld = (r[COL.IHLD] || '').toString().trim();
+    const location = (r[COL.LOCATION] || '').toString().trim();
+    const hasPMTA = pmta !== '' || /PM\s*TA/i.test(r.join(' '));
 
     return {
       menu: (r[COL.MENU] || '').toString().trim(),
       value: parseNumber(r[COL.VALUE]),
       status,
-      subStatus,
+      pmta,
+      ihld,
+      location,
       hasPMTA,
       raw: r
     };

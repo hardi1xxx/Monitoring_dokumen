@@ -171,17 +171,13 @@ function renderStatusTable(statusGroups) {
   statusGroups.forEach((g, i) => {
     const tr = document.createElement('tr');
     const color = PALETTE[i % PALETTE.length].accent;
-    tr.className = /^\s*00\b|\bDrop\b/i.test(g.status) ? 'clickable-status' : '';
+    tr.className = 'clickable-status';
     tr.innerHTML = `
       <td><span class="status-dot" style="background:${color}"></span>${g.status}</td>
       <td>${fmtNumber(g.count)}</td>
       <td style="color:${color}; font-weight:600; text-align:right;">Rp ${fmtMoney(g.total)}</td>
     `;
-    tr.addEventListener('click', () => {
-      if (/^\s*00\b|\bDrop\b/i.test(g.status)) {
-        showStatusDetail(g.status);
-      }
-    });
+    tr.addEventListener('click', () => showStatusDetail(g.status));
     tbody.appendChild(tr);
   });
   if (statusGroups.length === 0) {
@@ -196,19 +192,25 @@ function showStatusDetail(status) {
   const grouped = new Map();
 
   rows.forEach(rec => {
-    const key = rec.subStatus || rec.menu || '-';
+    const label = rec.location || rec.pmta || rec.menu || '-';
+    const key = `${label}||${rec.ihld || ''}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.value += rec.value;
       existing.count += 1;
     } else {
-      grouped.set(key, { label: key, value: rec.value, count: 1 });
+      grouped.set(key, {
+        label,
+        ihld: rec.ihld,
+        value: rec.value,
+        count: 1
+      });
     }
   });
 
   const rowsHtml = Array.from(grouped.values()).map(item => `
     <div class="detail-row">
-      <span>${item.label}</span>
+      <span>${item.label}${item.ihld ? ` • ${item.ihld}` : ''}</span>
       <span>${fmtMoney(item.value)} (${item.count} LOP)</span>
     </div>
   `).join('');
@@ -236,7 +238,7 @@ function renderStatusCards(statusGroups) {
     const groupedRows = [];
     const rowMap = new Map();
     g.items.forEach(item => {
-      const key = item.subStatus || item.menu || '-';
+      const key = item.location || item.pmta || item.menu || '-';
       const existing = rowMap.get(key);
       if (existing) {
         existing.value += item.value;
