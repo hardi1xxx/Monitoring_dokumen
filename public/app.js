@@ -55,22 +55,61 @@ function renderSidebar() {
   const nav = document.getElementById('sidebarMenu');
   // clear all but the first "Dashboard" button
   nav.querySelectorAll('button[data-menu]:not([data-menu="__all__"])').forEach(b => b.remove());
+  nav.querySelectorAll('.menu-group').forEach(g => g.remove());
 
-  dashboardData.menus.forEach(menu => {
-    const btn = document.createElement('button');
-    btn.className = 'menu-item';
-    btn.dataset.menu = menu;
-    btn.innerHTML = `<span class="menu-icon">📁</span> <span>${menu}</span>`;
-    btn.addEventListener('click', () => selectMenu(menu));
-    nav.appendChild(btn);
-  });
+  // Render grouped menus if available
+  if (dashboardData.groupedMenus && dashboardData.groupedMenus.length > 0) {
+    dashboardData.groupedMenus.forEach(group => {
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'menu-group';
+      
+      const groupLabel = document.createElement('div');
+      groupLabel.className = 'menu-group-label';
+      groupLabel.innerHTML = `<span class="menu-group-toggle">▼</span> ${group.group}`;
+      groupLabel.addEventListener('click', () => {
+        const container = groupDiv.querySelector('.menu-group-items');
+        const toggle = groupDiv.querySelector('.menu-group-toggle');
+        const isCollapsed = container.style.display === 'none';
+        container.style.display = isCollapsed ? 'block' : 'none';
+        toggle.textContent = isCollapsed ? '▼' : '▶';
+        localStorage.setItem(`menuGroupCollapsed_${group.group}`, isCollapsed ? 'false' : 'true');
+      });
+      groupDiv.appendChild(groupLabel);
+      
+      const itemsContainer = document.createElement('div');
+      itemsContainer.className = 'menu-group-items';
+      itemsContainer.style.display = localStorage.getItem(`menuGroupCollapsed_${group.group}`) === 'true' ? 'none' : 'block';
+      
+      group.items.forEach(menu => {
+        const btn = document.createElement('button');
+        btn.className = 'menu-item menu-item-sub';
+        btn.dataset.menu = menu;
+        btn.innerHTML = `<span class="menu-icon">📄</span> <span>${menu}</span>`;
+        btn.addEventListener('click', () => selectMenu(menu));
+        itemsContainer.appendChild(btn);
+      });
+      
+      groupDiv.appendChild(itemsContainer);
+      nav.appendChild(groupDiv);
+    });
+  } else {
+    // Fallback to flat menu if grouped menus not available
+    dashboardData.menus.forEach(menu => {
+      const btn = document.createElement('button');
+      btn.className = 'menu-item';
+      btn.dataset.menu = menu;
+      btn.innerHTML = `<span class="menu-icon">📁</span> <span>${menu}</span>`;
+      btn.addEventListener('click', () => selectMenu(menu));
+      nav.appendChild(btn);
+    });
+  }
 
   document.querySelector('.menu-item[data-menu="__all__"]').addEventListener('click', () => selectMenu('__all__'));
 }
 
 function selectMenu(menu) {
   currentMenu = menu;
-  document.querySelectorAll('.menu-item').forEach(b => {
+  document.querySelectorAll('.menu-item, .menu-item-sub').forEach(b => {
     b.classList.toggle('active', b.dataset.menu === menu);
   });
   const title = menu === '__all__' ? 'Semua Project' : menu;

@@ -112,6 +112,62 @@ body {
 
 .menu-icon { font-size: 14px; width: 18px; text-align: center; }
 
+/* Menu groups (submenu organization) */
+.menu-group {
+  margin-bottom: 4px;
+}
+
+.menu-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b9c2e0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.menu-group-label:hover {
+  color: #d5dfe8;
+}
+
+.menu-group-toggle {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+  transition: transform 0.2s;
+}
+
+.menu-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255,255,255,0.1);
+  margin-left: 8px;
+}
+
+.menu-item-sub {
+  font-size: 12px;
+  padding: 8px 10px;
+  color: #cfd6ef;
+}
+
+.menu-item-sub:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.menu-item-sub.active {
+  background: var(--red);
+  color: white;
+}
+
 .sidebar-footer { padding: 14px; border-top: 1px solid rgba(255,255,255,0.1); }
 .sidebar-footer button {
   width: 100%;

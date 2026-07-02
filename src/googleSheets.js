@@ -8,6 +8,7 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 
 // Column letters as requested:
 // B = Menu / Project grouping (kiri sidebar)
+// C = Project name (for menu grouping - take first word)
 // K = Nilai/jumlah (summed)
 // E = PM TA (sub status)
 // F = ID IHLD
@@ -15,6 +16,7 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 // R = Status Smile
 const COL = {
   MENU: 1,      // B -> index 1 (0-based)
+  PROJECT: 2,   // C -> index 2 (0-based)
   VALUE: 10,    // K -> index 10
   PM_TA: 4,     // E -> index 4
   IHLD: 5,      // F -> index 5
@@ -112,10 +114,14 @@ async function getDashboardData() {
     const pmta = (r[COL.PM_TA] || '').toString().trim();
     const ihld = (r[COL.IHLD] || '').toString().trim();
     const location = (r[COL.LOCATION] || '').toString().trim();
+    const menu = (r[COL.MENU] || '').toString().trim();
+    const project = (r[COL.PROJECT] || '').toString().trim();
+    const projectGroup = project ? project.split(/\s+/)[0] : ''; // Extract first word
     const hasPMTA = pmta !== '' || /PM\s*TA/i.test(r.join(' '));
 
     return {
-      menu: (r[COL.MENU] || '').toString().trim(),
+      menu,
+      projectGroup,
       value: parseNumber(r[COL.VALUE]),
       status,
       statusLap,
@@ -127,11 +133,22 @@ async function getDashboardData() {
     };
   }).filter(rec => rec.menu !== '' || rec.status !== '' || (rec.statusLap && rec.statusLap !== ''));
 
-  // Unique menus (sidebar) preserving first-seen order
+  // Unique menus (sidebar) preserving first-seen order, grouped by project
+  const menuGroups = new Map();
   const menuSet = [];
   records.forEach(rec => {
-    if (rec.menu && !menuSet.includes(rec.menu)) menuSet.push(rec.menu);
+    if (rec.menu && !menuSet.includes(rec.menu)) {
+      menuSet.push(rec.menu);
+      const group = rec.projectGroup || 'Lainnya';
+      if (!menuGroups.has(group)) menuGroups.set(group, []);
+      menuGroups.get(group).push(rec.menu);
+    }
   });
+  
+  const groupedMenus = Array.from(menuGroups.entries()).map(([group, items]) => ({
+    group,
+    items
+  }));
 
   // Status groups with count + sum of value
   const statusMap = new Map();
@@ -153,7 +170,7 @@ async function getDashboardData() {
     headerRow: header
   };
 
-  return { menus: menuSet, statuses, records, totals };
+  return { menus: menuSet, groupedMenus, statuses, records, totals };
 }
 
 function clearCache() {
