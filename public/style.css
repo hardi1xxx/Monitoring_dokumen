@@ -144,6 +144,37 @@ body {
   transition: transform 0.2s;
 }
 
+.menu-group-filter {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #cfd6ef;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.menu-group-filter:hover { background: rgba(255,255,255,0.06); }
+
+.menu-group-label.active {
+  background: rgba(255,255,255,0.06);
+  color: white;
+}
+
+.menu-group-clear {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #cfd6ef;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+.menu-group-clear:hover { background: rgba(255,255,255,0.06); }
+
 .menu-group-items {
   display: flex;
   flex-direction: column;

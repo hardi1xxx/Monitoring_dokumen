@@ -10,6 +10,11 @@ const PALETTE = [
 
 let dashboardData = null;
 let currentMenu = '__all__';
+// explicit submenu grouping (overrides auto grouping)
+const GROUP_MAP = {
+  FBB: ['SP#8', 'SP#16', 'SP#20'],
+  HEM: ['SP#27', 'SP#28']
+};
 
 function fmtMoney(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(2).replace(/\.00$/, '') + ' M';
@@ -56,52 +61,85 @@ function renderSidebar() {
   // clear all but the first "Dashboard" button
   nav.querySelectorAll('button[data-menu]:not([data-menu="__all__"])').forEach(b => b.remove());
   nav.querySelectorAll('.menu-group').forEach(g => g.remove());
+  // Build groups from explicit GROUP_MAP but only include existing menus
+  const existingMenus = new Set(dashboardData.menus || []);
+  const groups = Object.keys(GROUP_MAP).map(k => ({ group: k, items: GROUP_MAP[k].filter(m => existingMenus.has(m)) }));
 
-  // Render grouped menus if available
-  if (dashboardData.groupedMenus && dashboardData.groupedMenus.length > 0) {
-    dashboardData.groupedMenus.forEach(group => {
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'menu-group';
-      
-      const groupLabel = document.createElement('div');
-      groupLabel.className = 'menu-group-label';
-      groupLabel.innerHTML = `<span class="menu-group-toggle">▼</span> ${group.group}`;
-      groupLabel.addEventListener('click', () => {
-        const container = groupDiv.querySelector('.menu-group-items');
-        const toggle = groupDiv.querySelector('.menu-group-toggle');
-        const isCollapsed = container.style.display === 'none';
-        container.style.display = isCollapsed ? 'block' : 'none';
-        toggle.textContent = isCollapsed ? '▼' : '▶';
-        localStorage.setItem(`menuGroupCollapsed_${group.group}`, isCollapsed ? 'false' : 'true');
-      });
-      groupDiv.appendChild(groupLabel);
-      
-      const itemsContainer = document.createElement('div');
-      itemsContainer.className = 'menu-group-items';
-      itemsContainer.style.display = localStorage.getItem(`menuGroupCollapsed_${group.group}`) === 'true' ? 'none' : 'block';
-      
-      group.items.forEach(menu => {
-        const btn = document.createElement('button');
-        btn.className = 'menu-item menu-item-sub';
-        btn.dataset.menu = menu;
-        btn.innerHTML = `<span class="menu-icon">📄</span> <span>${menu}</span>`;
-        btn.addEventListener('click', () => selectMenu(menu));
-        itemsContainer.appendChild(btn);
-      });
-      
-      groupDiv.appendChild(itemsContainer);
-      nav.appendChild(groupDiv);
+  groups.forEach(group => {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'menu-group';
+
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'menu-group-label';
+    groupLabel.dataset.group = group.group;
+    groupLabel.innerHTML = `<span class="menu-group-toggle">▼</span> ${group.group}`;
+    groupDiv.appendChild(groupLabel);
+
+    const filterBtn = document.createElement('button');
+    filterBtn.className = 'menu-group-filter';
+    filterBtn.textContent = 'Filter';
+    filterBtn.style.marginLeft = '8px';
+    filterBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectGroup(group.group);
     });
-  } else {
-    // Fallback to flat menu if grouped menus not available
-    dashboardData.menus.forEach(menu => {
+    groupLabel.appendChild(filterBtn);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'menu-group-clear';
+    clearBtn.textContent = 'Clear';
+    clearBtn.style.marginLeft = '6px';
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectMenu('__all__');
+    });
+    groupLabel.appendChild(clearBtn);
+
+    groupLabel.addEventListener('click', () => {
+      const container = groupDiv.querySelector('.menu-group-items');
+      const toggle = groupDiv.querySelector('.menu-group-toggle');
+      const isCollapsed = container.style.display === 'none';
+      container.style.display = isCollapsed ? 'block' : 'none';
+      toggle.textContent = isCollapsed ? '▼' : '▶';
+      localStorage.setItem(`menuGroupCollapsed_${group.group}`, isCollapsed ? 'false' : 'true');
+    });
+
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'menu-group-items';
+    itemsContainer.style.display = localStorage.getItem(`menuGroupCollapsed_${group.group}`) === 'true' ? 'none' : 'block';
+
+    group.items.forEach(menu => {
+      const btn = document.createElement('button');
+      btn.className = 'menu-item menu-item-sub';
+      btn.dataset.menu = menu;
+      btn.innerHTML = `<span class="menu-icon">📄</span> <span>${menu}</span>`;
+      btn.addEventListener('click', () => selectMenu(menu));
+      itemsContainer.appendChild(btn);
+    });
+
+    groupDiv.appendChild(itemsContainer);
+    nav.appendChild(groupDiv);
+  });
+
+  // Append any menus not included in groups
+  dashboardData.menus.forEach(menu => {
+    const inAnyGroup = Object.values(GROUP_MAP).some(arr => arr.includes(menu));
+    if (!inAnyGroup) {
       const btn = document.createElement('button');
       btn.className = 'menu-item';
       btn.dataset.menu = menu;
       btn.innerHTML = `<span class="menu-icon">📁</span> <span>${menu}</span>`;
       btn.addEventListener('click', () => selectMenu(menu));
       nav.appendChild(btn);
-    });
+    }
+  });
+
+  // ensure group active/clear states reflect currentMenu
+  document.querySelectorAll('.menu-group-label').forEach(lbl => lbl.classList.remove('active'));
+  if (currentMenu && currentMenu.startsWith('__group__')) {
+    const g = currentMenu.replace('__group__', '');
+    const lbl = document.querySelector(`.menu-group-label[data-group="${g}"]`);
+    if (lbl) lbl.classList.add('active');
   }
 
   document.querySelector('.menu-item[data-menu="__all__"]').addEventListener('click', () => selectMenu('__all__'));
@@ -117,8 +155,42 @@ function selectMenu(menu) {
   render();
 }
 
+// wrap render call to update group label active state as well
+const originalRender = render;
+render = function() {
+  originalRender();
+  updateGroupLabelActive();
+};
+
+function selectGroup(groupName) {
+  currentMenu = `__group__${groupName}`;
+  // mark group items as active
+  document.querySelectorAll('.menu-item, .menu-item-sub').forEach(b => {
+    const inGroup = (GROUP_MAP[groupName] || []).includes(b.dataset.menu);
+    b.classList.toggle('active', inGroup);
+  });
+  const title = groupName;
+  document.getElementById('pageSubtitle').innerHTML = `${title} &middot; Update terakhir: <span id="updatedAt">${new Date(dashboardData.updatedAt).toLocaleString('id-ID')}</span>`;
+  render();
+}
+ 
+// ensure group label active state when selecting individual menu or clearing
+function updateGroupLabelActive() {
+  document.querySelectorAll('.menu-group-label').forEach(lbl => lbl.classList.remove('active'));
+  if (currentMenu && currentMenu.startsWith('__group__')) {
+    const g = currentMenu.replace('__group__', '');
+    const lbl = document.querySelector(`.menu-group-label[data-group="${g}"]`);
+    if (lbl) lbl.classList.add('active');
+  }
+}
+
 function getFilteredRecords() {
   if (currentMenu === '__all__') return dashboardData.records;
+  if (currentMenu && currentMenu.startsWith('__group__')) {
+    const groupName = currentMenu.replace('__group__', '');
+    const menus = GROUP_MAP[groupName] || [];
+    return dashboardData.records.filter(r => menus.includes(r.menu));
+  }
   return dashboardData.records.filter(r => r.menu === currentMenu);
 }
 
