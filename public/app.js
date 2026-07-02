@@ -397,12 +397,11 @@ function renderStatusCards(statusGroups) {
     if (uniquePMTAs.length === 0) {
       pmtaHtml = '<div style="font-size:11px; color:#888; margin-top:8px;">Tidak ada PM TA</div>';
     } else if (uniquePMTAs.length === 1) {
-      pmtaHtml = `<div style="font-size:12px; color:#555; margin-top:8px; padding:6px 8px; background:#f0f1f6; border-radius:4px;">${uniquePMTAs[0]}</div>`;
+      pmtaHtml = `<div class="pmta-chip" data-pmta="${uniquePMTAs[0]}" data-status="${g.status}" style="font-size:12px; color:#555; margin-top:8px; padding:6px 8px; background:#f0f1f6; border-radius:4px; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.background='${color.accent}'; this.style.color='white';" onmouseout="this.style.background='#f0f1f6'; this.style.color='#555';">${uniquePMTAs[0]}</div>`;
     } else {
-      // Free design: show multiple PM TAs as chips
-      pmtaHtml = `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
-        ${uniquePMTAs.slice(0, 3).map(pmta => `<span style="font-size:10px; padding:4px 8px; background:${color.accent}; color:white; border-radius:12px; white-space:nowrap;">${pmta}</span>`).join('')}
-        ${uniquePMTAs.length > 3 ? `<span style="font-size:10px; padding:4px 8px; background:#e8eaef; color:#666; border-radius:12px;">+${uniquePMTAs.length - 3}</span>` : ''}
+      // Free design: show all PM TAs as chips (no truncation)
+      pmtaHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+        ${uniquePMTAs.map(pmta => `<span class="pmta-chip" data-pmta="${pmta}" data-status="${g.status}" style="font-size:11px; padding:5px 10px; background:${color.accent}; color:white; border-radius:12px; white-space:nowrap; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.opacity='0.8'; this.style.transform='scale(1.05)';" onmouseout="this.style.opacity='1'; this.style.transform='scale(1)';">${pmta}</span>`).join('')}
       </div>`;
     }
     
@@ -438,7 +437,17 @@ function renderStatusCards(statusGroups) {
       card.style.boxShadow = '0 1px 4px rgba(15,27,76,0.06)';
       card.style.transform = 'translateY(0)';
     });
-    card.addEventListener('click', () => showStatusModal({ type: 'smile', status: g.status }));
+    card.addEventListener('click', (e) => {
+      // Check if a PM TA chip was clicked
+      if (e.target.classList.contains('pmta-chip')) {
+        e.stopPropagation();
+        const pmta = e.target.dataset.pmta;
+        const status = e.target.dataset.status;
+        showStatusModal({ type: 'smile', status, filterLabel: pmta });
+      } else {
+        showStatusModal({ type: 'smile', status: g.status });
+      }
+    });
     
     container.appendChild(card);
   });
