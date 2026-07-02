@@ -109,7 +109,8 @@ function computeStatusGroups(records) {
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
-  const statusSmileGroups = computeStatusGroups(records.filter(r => !r.statusLap));
+  const rawStatusSmileGroups = computeStatusGroups(records.filter(r => !r.statusLap));
+  const statusSmileGroups = rawStatusSmileGroups.filter(g => !/drop/i.test((g.status || '').toString()));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
@@ -360,6 +361,8 @@ function renderStatusCards(statusGroups) {
   const orderedGroups = [...statusGroups].reverse();
 
   orderedGroups.forEach((g) => {
+    // skip Drop status cards (do not display)
+    if (/drop/i.test((g.status || '').toString())) return;
     const originalIndex = statusGroups.findIndex(group => group.status === g.status);
     const color = PALETTE[originalIndex % PALETTE.length];
     const card = document.createElement('div');
