@@ -358,16 +358,22 @@ function renderStatusCards(statusGroups) {
   const container = document.getElementById('statusCards');
   container.innerHTML = '';
 
+  if (!statusGroups || statusGroups.length === 0) {
+    container.innerHTML = '<div style="color:#999; padding:12px;">Tidak ada kartu status</div>';
+    return;
+  }
+
   const orderedGroups = [...statusGroups].reverse();
 
   orderedGroups.forEach((g) => {
     // skip Drop status cards (do not display)
-    if (/drop/i.test((g.status || '').toString())) return;
-    const originalIndex = statusGroups.findIndex(group => group.status === g.status);
-    const color = PALETTE[originalIndex % PALETTE.length];
+    if (/^\s*\d*\.?\s*drop\b/i.test((g.status || '').toString())) return;
+    let originalIndex = statusGroups.findIndex(group => group.status === g.status);
+    if (originalIndex === -1) originalIndex = 0;
+    const color = PALETTE[originalIndex % PALETTE.length] || PALETTE[0];
     const card = document.createElement('div');
     card.className = 'status-card';
-    card.style.background = color.bg;
+    card.style.background = (color && color.bg) ? color.bg : '#f6f7fb';
 
     const groupedRows = [];
     const rowMap = new Map();
