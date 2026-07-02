@@ -109,8 +109,12 @@ function computeStatusGroups(records) {
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
-  const rawStatusSmileGroups = computeStatusGroups(records.filter(r => !r.statusLap));
-  const statusSmileGroups = rawStatusSmileGroups.filter(g => !/drop/i.test((g.status || '').toString()));
+  // build smile groups from the `status` column (same basis as the STATUS SMILE table)
+  const rawStatusSmileGroups = computeStatusGroups(records);
+  // hide Drop from cards but keep header/count consistent with table
+  const statusSmileGroups = rawStatusSmileGroups.filter(g => !/^\s*\d*\.?\s*drop\b/i.test((g.status || '').toString()));
+  console.debug('rawStatusSmileGroups count:', rawStatusSmileGroups.length, 'statuses:', rawStatusSmileGroups.map(g=>g.status));
+  console.debug('statusSmileGroups count:', statusSmileGroups.length, 'statuses:', statusSmileGroups.map(g=>g.status));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
@@ -118,7 +122,8 @@ function render() {
   const totalPotensi = records.reduce((s, r) => s + r.value, 0);
   document.getElementById('statPotensi').textContent = 'Rp ' + fmtMoney(totalPotensi);
   document.getElementById('statPotensiSub').textContent = fmtNumber(records.length) + ' LOP';
-  document.getElementById('statStatus').textContent = statusSmileGroups.length;
+  // show total status count same as STATUS SMILE table
+  document.getElementById('statStatus').textContent = rawStatusSmileGroups.length;
   document.getElementById('statBranch').textContent = dashboardData.menus.length;
 
   document.getElementById('statusDetailPanel').style.display = 'none';
@@ -363,7 +368,7 @@ function renderStatusCards(statusGroups) {
     return;
   }
 
-  const orderedGroups = [...statusGroups].reverse();
+  const orderedGroups = [...statusGroups].sort((a, b) => parseStatusOrder(b.status) - parseStatusOrder(a.status) || b.status.localeCompare(a.status));
 
   orderedGroups.forEach((g) => {
     // skip Drop status cards (do not display)
