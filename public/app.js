@@ -126,7 +126,7 @@ function render() {
   renderProgressOverview(statusGroups, records.length, statusLapGroups, records);
   renderStatusTable(statusGroups);
   renderStatusFisikTable(statusLapGroups);
-  renderStatusCards(statusSmileSmileGroups);
+  renderStatusCards(statusSmileGroups);
   renderStatusLapCards(statusLapGroups);
 }
 
@@ -149,17 +149,19 @@ function renderProgressOverview(statusGroups, totalCount, statusLapGroups, recor
     })
     .reduce((s, r) => s + r.value, 0);
 
-  const cards = [
-    { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '' },
-    { icon: '🏷️', label: 'POTENSI (BULAN INI)', val: 'Rp ' + fmtMoney(potensiBulanIni), sub: 'Status Fisik' },
-    { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)' },
-    { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '' },
+    const cards = [
+      { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '', action: 'all' },
+      { icon: '🏷️', label: 'POTENSI (BULAN INI)', val: 'Rp ' + fmtMoney(potensiBulanIni), sub: 'Status Fisik', action: 'potensi' },
+      { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)', action: 'bast' },
+      { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '', action: 'all' },
   ];
 
   cards.forEach(c => {
     const div = document.createElement('div');
     div.className = 'progress-card';
     div.innerHTML = `<div class="icon">${c.icon}</div><div class="val">${c.val}</div><div class="lbl">${c.label}</div><div class="sub">${c.sub}</div>`;
+      div.style.cursor = 'pointer';
+    div.addEventListener('click', () => showProgressModal(c.action));
     summaryWrap.appendChild(div);
   });
   container.appendChild(summaryWrap);
@@ -270,6 +272,28 @@ function openModal(title, rows, count, totalValue, fileName) {
   closeBtn.onclick = hide;
   overlay.onclick = (e) => { if (e.target === overlay) hide(); };
   downloadBtn.onclick = () => downloadExcelWithRaw(rows, fileName || 'export.xlsx');
+}
+
+function showProgressModal(action) {
+  let records = getFilteredRecords();
+  let title = 'Semua Data';
+  if (action === 'potensi') {
+    records = records.filter(r => {
+      const v = (r.statusLap || '').toString().toLowerCase();
+      return v.includes('golive') || v.includes('ut') || v.includes('pemberkasan');
+    });
+    title = 'Potensi (Bulan Ini)';
+  } else if (action === 'bast') {
+    records = records.filter(r => /\b08\b|\bBAST\b/i.test((r.status || '').toString()));
+    title = 'BAST';
+  } else if (action === 'all') {
+    title = 'Semua Data';
+  }
+
+  const totalValue = records.reduce((s, r) => s + r.value, 0);
+  const count = records.length;
+  const fileName = createExportFileName('progress', title);
+  openModal(title, records, count, totalValue, fileName);
 }
 
 function normalizeFileName(name) {
