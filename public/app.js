@@ -109,24 +109,28 @@ function computeStatusGroups(records) {
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
+  const statusSmileGroups = computeStatusGroups(records.filter(r => !r.statusLap));
+  const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
 
   const totalPotensi = records.reduce((s, r) => s + r.value, 0);
   document.getElementById('statPotensi').textContent = 'Rp ' + fmtMoney(totalPotensi);
   document.getElementById('statPotensiSub').textContent = fmtNumber(records.length) + ' LOP';
-  document.getElementById('statStatus').textContent = statusGroups.length;
+  document.getElementById('statStatus').textContent = statusSmileGroups.length;
   document.getElementById('statBranch').textContent = dashboardData.menus.length;
 
-  renderProgressOverview(statusGroups, records.length);
+  document.getElementById('statusDetailPanel').style.display = 'none';
+  document.getElementById('statusDetailPanel').innerHTML = '';
+
+  renderProgressOverview(statusGroups, records.length, statusLapGroups, records);
   renderStatusTable(statusGroups);
-  const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   renderStatusFisikTable(statusLapGroups);
-  renderStatusCards(statusGroups);
+  renderStatusCards(statusSmileSmileGroups);
   renderStatusLapCards(statusLapGroups);
 }
 
-function renderProgressOverview(statusGroups, totalCount) {
+function renderProgressOverview(statusGroups, totalCount, statusLapGroups, records) {
   const container = document.getElementById('progressOverview');
   container.innerHTML = '';
 
@@ -138,9 +142,16 @@ function renderProgressOverview(statusGroups, totalCount) {
   const bastValue = bastGroup ? bastGroup.total : 0;
   const bastLabel = bastGroup ? 'BAST' : '-';
 
+  const potensiBulanIni = records
+    .filter(r => {
+      const v = (r.statusLap || '').toString().toLowerCase();
+      return v.includes('golive') || v.includes('ut') || v.includes('pemberkasan');
+    })
+    .reduce((s, r) => s + r.value, 0);
+
   const cards = [
     { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '' },
-    { icon: '🏷️', label: 'JUMLAH STATUS', val: statusGroups.length, sub: 'Status Smile' },
+    { icon: '🏷️', label: 'POTENSI (BULAN INI)', val: 'Rp ' + fmtMoney(potensiBulanIni), sub: 'Status Fisik' },
     { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)' },
     { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '' },
   ];
@@ -313,49 +324,10 @@ function showStatusModal({type, status, filterLabel}) {
 }
 
 function showStatusDetail(status) {
+  showStatusModal({ type: 'smile', status });
   const detailPanel = document.getElementById('statusDetailPanel');
-  const allRecords = getFilteredRecords();
-  const detailRows = allRecords.filter(r => String(r.status || '').trim() === String(status).trim());
-  const grouped = new Map();
-
-  detailRows.forEach(rec => {
-    const labelBase = rec.pmta || rec.menu || '-';
-    const label = rec.pmta ? `${rec.pmta}${rec.location ? ` [${rec.location}]` : ''}` : (rec.location || rec.menu || '-');
-    const key = `${rec.pmta || '-'}||${rec.location || ''}`;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.value += rec.value;
-      existing.count += 1;
-    } else {
-      grouped.set(key, {
-        label,
-        value: rec.value,
-        count: 1
-      });
-    }
-  });
-
-  const rowsHtml = Array.from(grouped.values()).map(item => `
-    <div class="detail-row">
-      <span>${item.label}</span>
-      <span>${fmtMoney(item.value)} (${item.count} LOP)</span>
-    </div>
-  `).join('');
-
-  detailPanel.innerHTML = `
-    <div class="status-detail-panel-header">
-      <h3>Detail ${status}</h3>
-      <button id="detailDownload" class="detail-download">Download</button>
-    </div>
-    ${rowsHtml || '<div class="detail-row">Tidak ada data untuk status ini.</div>'}
-  `;
-  detailPanel.style.display = 'block';
-
-  const downloadBtn = document.getElementById('detailDownload');
-  downloadBtn.onclick = () => {
-    const fileName = createExportFileName('smile', status);
-    downloadExcelWithRaw(detailRows, fileName);
-  };
+  detailPanel.style.display = 'none';
+  detailPanel.innerHTML = '';
 }
 
 function renderStatusCards(statusGroups) {
