@@ -113,8 +113,6 @@ function render() {
   const rawStatusSmileGroups = computeStatusGroups(records);
   // hide Drop from cards but keep header/count consistent with table
   const statusSmileGroups = rawStatusSmileGroups.filter(g => !/^\s*\d*\.?\s*drop\b/i.test((g.status || '').toString()));
-  console.debug('rawStatusSmileGroups count:', rawStatusSmileGroups.length, 'statuses:', rawStatusSmileGroups.map(g=>g.status));
-  console.debug('statusSmileGroups count:', statusSmileGroups.length, 'statuses:', statusSmileGroups.map(g=>g.status));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
@@ -376,48 +374,44 @@ function renderStatusCards(statusGroups) {
     let originalIndex = statusGroups.findIndex(group => group.status === g.status);
     if (originalIndex === -1) originalIndex = 0;
     const color = PALETTE[originalIndex % PALETTE.length] || PALETTE[0];
+    
     const card = document.createElement('div');
-    card.className = 'status-card';
-    card.style.background = (color && color.bg) ? color.bg : '#f6f7fb';
-
-    const groupedRows = [];
-    const rowMap = new Map();
-    g.items.forEach(item => {
-      const key = item.pmta || '-';
-      const label = item.pmta || '-';
-      const existing = rowMap.get(key);
-      if (existing) {
-        existing.value += item.value;
-      } else {
-        const row = { label, value: item.value };
-        rowMap.set(key, row);
-        groupedRows.push(row);
-      }
-    });
-
+    card.className = 'status-card-free';
+    card.style.borderLeft = `5px solid ${color.accent}`;
+    
+    // Clean, modern design: just show key metrics
+    const statusLabel = g.status.replace(/^\s*\d+\.?\s*/, ''); // Remove leading numbers
     card.innerHTML = `
-      <div class="header">
-        <span class="badge" style="background:${color.accent}">${originalIndex + 1}</span>
-        <span>${g.status}</span>
+      <div class="card-top" style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px;">
+        <div style="flex:1;">
+          <div class="card-status-name" style="font-size:13px; color:${color.accent}; font-weight:600; margin-bottom:2px;">
+            ${statusLabel}
+          </div>
+          <div class="card-lop-count" style="font-size:18px; font-weight:700; color:#1a2c4a;">
+            ${fmtNumber(g.count)}
+          </div>
+          <div class="card-lop-label" style="font-size:11px; color:#888; margin-top:2px;">LOP</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="card-value" style="font-size:14px; font-weight:700; color:${color.accent};">
+            Rp ${fmtMoney(g.total)}
+          </div>
+        </div>
       </div>
-      <div class="amount" style="color:${color.accent}">Rp ${fmtMoney(g.total)}</div>
-      <div class="count">${fmtNumber(g.count)} LOP</div>
-      <div class="rows"></div>
     `;
-
-    const rowsContainer = card.querySelector('.rows');
-    groupedRows.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'row-item';
-      row.innerHTML = `<span>${item.label}</span><span>${fmtMoney(item.value)}</span>`;
-      row.addEventListener('click', (event) => {
-        event.stopPropagation();
-        showStatusModal({ type: 'smile', status: g.status, filterLabel: item.label });
-      });
-      rowsContainer.appendChild(row);
+    
+    card.style.cursor = 'pointer';
+    card.style.transition = 'all 0.2s ease';
+    card.addEventListener('mouseenter', () => {
+      card.style.boxShadow = '0 6px 16px rgba(15,27,76,0.12)';
+      card.style.transform = 'translateY(-2px)';
     });
-
+    card.addEventListener('mouseleave', () => {
+      card.style.boxShadow = '0 1px 4px rgba(15,27,76,0.06)';
+      card.style.transform = 'translateY(0)';
+    });
     card.addEventListener('click', () => showStatusModal({ type: 'smile', status: g.status }));
+    
     container.appendChild(card);
   });
 }
