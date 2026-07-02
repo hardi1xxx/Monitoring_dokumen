@@ -375,14 +375,39 @@ function renderStatusCards(statusGroups) {
     if (originalIndex === -1) originalIndex = 0;
     const color = PALETTE[originalIndex % PALETTE.length] || PALETTE[0];
     
+    // Extract unique PM TAs from items
+    const pmtaMap = new Map();
+    if (g.items) {
+      g.items.forEach(item => {
+        const pmta = (item.pmta || '-').toString().trim();
+        if (!pmtaMap.has(pmta)) pmtaMap.set(pmta, 0);
+        pmtaMap.set(pmta, pmtaMap.get(pmta) + 1);
+      });
+    }
+    const uniquePMTAs = Array.from(pmtaMap.keys()).filter(p => p !== '-');
+    
     const card = document.createElement('div');
     card.className = 'status-card-free';
     card.style.borderLeft = `5px solid ${color.accent}`;
     
     // Clean, modern design: just show key metrics
     const statusLabel = g.status.replace(/^\s*\d+\.?\s*/, ''); // Remove leading numbers
+    
+    let pmtaHtml = '';
+    if (uniquePMTAs.length === 0) {
+      pmtaHtml = '<div style="font-size:11px; color:#888; margin-top:8px;">Tidak ada PM TA</div>';
+    } else if (uniquePMTAs.length === 1) {
+      pmtaHtml = `<div style="font-size:12px; color:#555; margin-top:8px; padding:6px 8px; background:#f0f1f6; border-radius:4px;">${uniquePMTAs[0]}</div>`;
+    } else {
+      // Free design: show multiple PM TAs as chips
+      pmtaHtml = `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
+        ${uniquePMTAs.slice(0, 3).map(pmta => `<span style="font-size:10px; padding:4px 8px; background:${color.accent}; color:white; border-radius:12px; white-space:nowrap;">${pmta}</span>`).join('')}
+        ${uniquePMTAs.length > 3 ? `<span style="font-size:10px; padding:4px 8px; background:#e8eaef; color:#666; border-radius:12px;">+${uniquePMTAs.length - 3}</span>` : ''}
+      </div>`;
+    }
+    
     card.innerHTML = `
-      <div class="card-top" style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px;">
+      <div class="card-top" style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:0;">
         <div style="flex:1;">
           <div class="card-status-name" style="font-size:13px; color:${color.accent}; font-weight:600; margin-bottom:2px;">
             ${statusLabel}
@@ -397,6 +422,9 @@ function renderStatusCards(statusGroups) {
             Rp ${fmtMoney(g.total)}
           </div>
         </div>
+      </div>
+      <div style="margin-top:8px;">
+        ${pmtaHtml}
       </div>
     `;
     
