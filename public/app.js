@@ -120,6 +120,8 @@ function render() {
 
   renderProgressOverview(statusGroups, records.length);
   renderStatusTable(statusGroups);
+  const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
+  renderStatusFisikTable(statusLapGroups);
   renderStatusCards(summaryGroups);
 }
 
@@ -183,6 +185,75 @@ function renderStatusTable(statusGroups) {
   if (statusGroups.length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">Tidak ada data</td></tr>';
   }
+}
+
+function renderStatusFisikTable(statusGroups) {
+  const tbody = document.getElementById('statusFisikBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  statusGroups.forEach((g, i) => {
+    const tr = document.createElement('tr');
+    const color = PALETTE[i % PALETTE.length].accent;
+    tr.innerHTML = `
+      <td><span class="status-dot" style="background:${color}"></span>${g.status}</td>
+      <td>${fmtNumber(g.count)}</td>
+      <td style="color:${color}; font-weight:600; text-align:right;">Rp ${fmtMoney(g.total)}</td>
+    `;
+    tr.classList.add('clickable-status');
+    tr.addEventListener('click', () => showStatusLapDetail(g.status));
+    tbody.appendChild(tr);
+  });
+  if (statusGroups.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">Tidak ada data</td></tr>';
+  }
+}
+
+function showStatusLapDetail(status) {
+  const overlay = document.getElementById('modalOverlay');
+  const title = document.getElementById('modalTitle');
+  const body = document.getElementById('modalBody');
+  title.textContent = `Status Lapangan: ${status}`;
+
+  const needle = (status || '').toString().trim().toLowerCase();
+  const records = getFilteredRecords().filter(r => {
+    const v = (r.statusLap || '').toString().trim().toLowerCase();
+    return needle === '' ? false : v.includes(needle);
+  });
+
+  const totalValue = records.reduce((s, r) => s + r.value, 0);
+  const count = records.length;
+
+  const summaryHtml = `
+    <div class="modal-summary">
+      <div class="item">Jumlah LOP: <strong>${fmtNumber(count)}</strong></div>
+      <div class="item">Total Nilai: <strong>Rp ${fmtMoney(totalValue)}</strong></div>
+    </div>`;
+
+  const rowsHtml = records.map(r => `
+    <tr>
+      <td>${r.menu || '-'}</td>
+      <td>${r.location || '-'}</td>
+      <td>${r.pmta || '-'}</td>
+      <td style="text-align:right;">Rp ${fmtMoney(r.value)}</td>
+    </tr>
+  `).join('');
+
+  const tableHtml = `
+    ${summaryHtml}
+    <table class="modal-table">
+      <thead><tr><th>Project</th><th>Lokasi</th><th>PM TA</th><th style="text-align:right;">Nilai</th></tr></thead>
+      <tbody>${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
+    </table>
+  `;
+
+  body.innerHTML = tableHtml;
+  overlay.style.display = 'flex';
+
+  // close handlers
+  const closeBtn = document.getElementById('modalClose');
+  function hide() { overlay.style.display = 'none'; }
+  closeBtn.onclick = hide;
+  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
 }
 
 function showStatusDetail(status) {

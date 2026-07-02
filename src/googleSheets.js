@@ -19,7 +19,8 @@ const COL = {
   PM_TA: 4,     // E -> index 4
   IHLD: 5,      // F -> index 5
   LOCATION: 7,  // H -> index 7
-  STATUS: 17    // R -> index 17
+  STATUS: 17,   // R -> index 17
+  STATUS_LAP: 16 // Q -> index 16
 };
 
 function colLetterToIndex(letter) {
@@ -107,6 +108,7 @@ async function getDashboardData() {
 
   const records = dataRows.map(r => {
     const status = (r[COL.STATUS] || '').toString().trim();
+    const statusLap = (r[COL.STATUS_LAP] || '').toString().trim();
     const pmta = (r[COL.PM_TA] || '').toString().trim();
     const ihld = (r[COL.IHLD] || '').toString().trim();
     const location = (r[COL.LOCATION] || '').toString().trim();
@@ -116,13 +118,14 @@ async function getDashboardData() {
       menu: (r[COL.MENU] || '').toString().trim(),
       value: parseNumber(r[COL.VALUE]),
       status,
+      statusLap,
       pmta,
       ihld,
       location,
       hasPMTA,
       raw: r
     };
-  }).filter(rec => rec.menu !== '' || rec.status !== '');
+  }).filter(rec => rec.menu !== '' || rec.status !== '' || (rec.statusLap && rec.statusLap !== ''));
 
   // Unique menus (sidebar) preserving first-seen order
   const menuSet = [];

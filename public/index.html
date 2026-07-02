@@ -86,6 +86,19 @@
               <div id="statusDetailPanel" class="status-detail-panel" style="display:none;"></div>
             </div>
           </div>
+          <div class="panel">
+            <div class="panel-header">STATUS FISIK</div>
+            <div class="panel-body">
+              <table class="status-table status-fisik-table" id="statusFisikTable">
+                <thead>
+                  <tr><th>Status Fisik</th><th>LOP</th><th></th></tr>
+                </thead>
+                <tbody id="statusFisikBody">
+                  <!-- Rows will be populated by script -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <div class="right-col">
@@ -97,5 +110,15 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Modal root for detail view -->
+  <div id="modalOverlay" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <div id="modalTitle">Detail</div>
+        <button id="modalClose" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
 </body>
 </html>
