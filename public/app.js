@@ -122,7 +122,8 @@ function render() {
   renderStatusTable(statusGroups);
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   renderStatusFisikTable(statusLapGroups);
-  renderStatusCards(summaryGroups);
+  renderStatusCards(statusGroups);
+  renderStatusLapCards(statusLapGroups);
 }
 
 function renderProgressOverview(statusGroups, totalCount) {
@@ -200,7 +201,7 @@ function renderStatusFisikTable(statusGroups) {
       <td style="color:${color}; font-weight:600; text-align:right;">Rp ${fmtMoney(g.total)}</td>
     `;
     tr.classList.add('clickable-status');
-    tr.addEventListener('click', () => showStatusLapDetail(g.status));
+    tr.addEventListener('click', () => showStatusModal({ type: 'lap', status: g.status }));
     tbody.appendChild(tr);
   });
   if (statusGroups.length === 0) {
@@ -208,20 +209,12 @@ function renderStatusFisikTable(statusGroups) {
   }
 }
 
-function showStatusLapDetail(status) {
+function openModal(title, rows, count, totalValue, fileName) {
   const overlay = document.getElementById('modalOverlay');
-  const title = document.getElementById('modalTitle');
+  const titleEl = document.getElementById('modalTitle');
   const body = document.getElementById('modalBody');
-  title.textContent = `Status Lapangan: ${status}`;
 
-  const needle = (status || '').toString().trim().toLowerCase();
-  const records = getFilteredRecords().filter(r => {
-    const v = (r.statusLap || '').toString().trim().toLowerCase();
-    return needle === '' ? false : v.includes(needle);
-  });
-
-  const totalValue = records.reduce((s, r) => s + r.value, 0);
-  const count = records.length;
+  titleEl.textContent = title;
 
   const summaryHtml = `
     <div class="modal-summary">
@@ -229,11 +222,13 @@ function showStatusLapDetail(status) {
       <div class="item">Total Nilai: <strong>Rp ${fmtMoney(totalValue)}</strong></div>
     </div>`;
 
-  const rowsHtml = records.map(r => `
+  const rowsHtml = rows.map(r => `
     <tr>
       <td>${r.menu || '-'}</td>
       <td>${r.location || '-'}</td>
       <td>${r.pmta || '-'}</td>
+      <td>${r.status || '-'}</td>
+      <td>${r.statusLap || '-'}</td>
       <td style="text-align:right;">Rp ${fmtMoney(r.value)}</td>
     </tr>
   `).join('');
@@ -241,28 +236,89 @@ function showStatusLapDetail(status) {
   const tableHtml = `
     ${summaryHtml}
     <table class="modal-table">
-      <thead><tr><th>Project</th><th>Lokasi</th><th>PM TA</th><th style="text-align:right;">Nilai</th></tr></thead>
-      <tbody>${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Lokasi</th>
+          <th>PM TA</th>
+          <th>Status Smile</th>
+          <th>Status Lap</th>
+          <th style="text-align:right;">Nilai</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml || '<tr><td colspan="6" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
     </table>
   `;
 
   body.innerHTML = tableHtml;
   overlay.style.display = 'flex';
 
-  // close handlers
   const closeBtn = document.getElementById('modalClose');
+  const downloadBtn = document.getElementById('modalDownload');
   function hide() { overlay.style.display = 'none'; }
   closeBtn.onclick = hide;
   overlay.onclick = (e) => { if (e.target === overlay) hide(); };
+  downloadBtn.onclick = () => downloadExcelWithRaw(rows, fileName || 'export.xlsx');
+}
+
+function normalizeFileName(name) {
+  return name.toString().trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '').toLowerCase();
+}
+
+function createExportFileName(type, status, filterLabel) {
+  const base = type === 'lap' ? 'status_lap' : 'status_smile';
+  const statusKey = normalizeFileName(status || 'all');
+  const labelKey = filterLabel ? `_${normalizeFileName(filterLabel)}` : '';
+  return `${base}_${statusKey}${labelKey}.xlsx`;
+}
+
+function downloadExcelWithRaw(records, fileName) {
+  const headerRow = (dashboardData && dashboardData.totals && dashboardData.totals.headerRow) || [];
+  const rows = records.map(rec => {
+    const raw = rec.raw || [];
+    const row = [];
+    for (let i = 0; i < headerRow.length; i += 1) {
+      row.push(raw[i] != null ? raw[i] : '');
+    }
+    return row;
+  });
+  const worksheetData = [headerRow, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, fileName);
+}
+
+function showStatusModal({type, status, filterLabel}) {
+  const needle = (status || '').toString().trim().toLowerCase();
+  const labelNeedle = filterLabel ? filterLabel.toString().trim().toLowerCase() : '';
+
+  const records = getFilteredRecords().filter(r => {
+    const statusValue = ((type === 'lap' ? r.statusLap : r.status) || '').toString().trim().toLowerCase();
+    const statusMatches = needle === '' ? false : statusValue.includes(needle);
+    if (!statusMatches) return false;
+    if (!labelNeedle) return true;
+    return ((r.pmta || '').toString().trim().toLowerCase().includes(labelNeedle) ||
+            (r.menu || '').toString().trim().toLowerCase().includes(labelNeedle));
+  });
+
+  const title = type === 'lap'
+    ? `Status Lapangan: ${status}${labelNeedle ? ` • ${filterLabel}` : ''}`
+    : `Status Smile: ${status}${labelNeedle ? ` • ${filterLabel}` : ''}`;
+
+  const totalValue = records.reduce((sum, r) => sum + r.value, 0);
+  const count = records.length;
+  const fileName = createExportFileName(type, status, filterLabel);
+  openModal(title, records, count, totalValue, fileName);
 }
 
 function showStatusDetail(status) {
   const detailPanel = document.getElementById('statusDetailPanel');
   const allRecords = getFilteredRecords();
-  const rows = allRecords.filter(r => String(r.status || '').trim() === String(status).trim());
+  const detailRows = allRecords.filter(r => String(r.status || '').trim() === String(status).trim());
   const grouped = new Map();
 
-  rows.forEach(rec => {
+  detailRows.forEach(rec => {
     const labelBase = rec.pmta || rec.menu || '-';
     const label = rec.pmta ? `${rec.pmta}${rec.location ? ` [${rec.location}]` : ''}` : (rec.location || rec.menu || '-');
     const key = `${rec.pmta || '-'}||${rec.location || ''}`;
@@ -287,10 +343,19 @@ function showStatusDetail(status) {
   `).join('');
 
   detailPanel.innerHTML = `
-    <h3>Detail ${status}</h3>
+    <div class="status-detail-panel-header">
+      <h3>Detail ${status}</h3>
+      <button id="detailDownload" class="detail-download">Download</button>
+    </div>
     ${rowsHtml || '<div class="detail-row">Tidak ada data untuk status ini.</div>'}
   `;
   detailPanel.style.display = 'block';
+
+  const downloadBtn = document.getElementById('detailDownload');
+  downloadBtn.onclick = () => {
+    const fileName = createExportFileName('smile', status);
+    downloadExcelWithRaw(detailRows, fileName);
+  };
 }
 
 function renderStatusCards(statusGroups) {
@@ -321,12 +386,60 @@ function renderStatusCards(statusGroups) {
       }
     });
 
-    const rowsHtml = groupedRows.map(item => `
-      <div class="row-item">
-        <span>${item.label}</span>
-        <span>${fmtMoney(item.value)}</span>
+    card.innerHTML = `
+      <div class="header">
+        <span class="badge" style="background:${color.accent}">${originalIndex + 1}</span>
+        <span>${g.status}</span>
       </div>
-    `).join('');
+      <div class="amount" style="color:${color.accent}">Rp ${fmtMoney(g.total)}</div>
+      <div class="count">${fmtNumber(g.count)} LOP</div>
+      <div class="rows"></div>
+    `;
+
+    const rowsContainer = card.querySelector('.rows');
+    groupedRows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'row-item';
+      row.innerHTML = `<span>${item.label}</span><span>${fmtMoney(item.value)}</span>`;
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showStatusModal({ type: 'smile', status: g.status, filterLabel: item.label });
+      });
+      rowsContainer.appendChild(row);
+    });
+
+    card.addEventListener('click', () => showStatusModal({ type: 'smile', status: g.status }));
+    container.appendChild(card);
+  });
+}
+
+function renderStatusLapCards(statusGroups) {
+  const container = document.getElementById('statusLapCards');
+  container.innerHTML = '';
+
+  const orderedGroups = [...statusGroups].reverse();
+
+  orderedGroups.forEach((g) => {
+    const originalIndex = statusGroups.findIndex(group => group.status === g.status);
+    const color = PALETTE[originalIndex % PALETTE.length];
+    const card = document.createElement('div');
+    card.className = 'status-card';
+    card.style.background = color.bg;
+
+    const groupedRows = [];
+    const rowMap = new Map();
+    g.items.forEach(item => {
+      const key = item.pmta || '-';
+      const label = item.pmta || '-';
+      const existing = rowMap.get(key);
+      if (existing) {
+        existing.value += item.value;
+      } else {
+        const row = { label, value: item.value };
+        rowMap.set(key, row);
+        groupedRows.push(row);
+      }
+    });
 
     card.innerHTML = `
       <div class="header">
@@ -335,8 +448,22 @@ function renderStatusCards(statusGroups) {
       </div>
       <div class="amount" style="color:${color.accent}">Rp ${fmtMoney(g.total)}</div>
       <div class="count">${fmtNumber(g.count)} LOP</div>
-      <div class="rows">${rowsHtml || '<div class="row-item">Tidak ada data</div>'}</div>
+      <div class="rows"></div>
     `;
+
+    const rowsContainer = card.querySelector('.rows');
+    groupedRows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'row-item';
+      row.innerHTML = `<span>${item.label}</span><span>${fmtMoney(item.value)}</span>`;
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showStatusModal({ type: 'lap', status: g.status, filterLabel: item.label });
+      });
+      rowsContainer.appendChild(row);
+    });
+
+    card.addEventListener('click', () => showStatusModal({ type: 'lap', status: g.status }));
     container.appendChild(card);
   });
 }
