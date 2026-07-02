@@ -127,7 +127,6 @@ function render() {
   renderStatusTable(statusGroups);
   renderStatusFisikTable(statusLapGroups);
   renderStatusCards(statusSmileGroups);
-  renderStatusLapCards(statusLapGroups);
 }
 
 function renderProgressOverview(statusGroups, totalCount, statusLapGroups, records) {
@@ -409,60 +408,7 @@ function renderStatusCards(statusGroups) {
   });
 }
 
-function renderStatusLapCards(statusGroups) {
-  const container = document.getElementById('statusLapCards');
-  container.innerHTML = '';
-
-  const orderedGroups = [...statusGroups].reverse();
-
-  orderedGroups.forEach((g) => {
-    const originalIndex = statusGroups.findIndex(group => group.status === g.status);
-    const color = PALETTE[originalIndex % PALETTE.length];
-    const card = document.createElement('div');
-    card.className = 'status-card';
-    card.style.background = color.bg;
-
-    const groupedRows = [];
-    const rowMap = new Map();
-    g.items.forEach(item => {
-      const key = item.pmta || '-';
-      const label = item.pmta || '-';
-      const existing = rowMap.get(key);
-      if (existing) {
-        existing.value += item.value;
-      } else {
-        const row = { label, value: item.value };
-        rowMap.set(key, row);
-        groupedRows.push(row);
-      }
-    });
-
-    card.innerHTML = `
-      <div class="header">
-        <span class="badge" style="background:${color.accent}">${originalIndex + 1}</span>
-        <span>${g.status}</span>
-      </div>
-      <div class="amount" style="color:${color.accent}">Rp ${fmtMoney(g.total)}</div>
-      <div class="count">${fmtNumber(g.count)} LOP</div>
-      <div class="rows"></div>
-    `;
-
-    const rowsContainer = card.querySelector('.rows');
-    groupedRows.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'row-item';
-      row.innerHTML = `<span>${item.label}</span><span>${fmtMoney(item.value)}</span>`;
-      row.addEventListener('click', (event) => {
-        event.stopPropagation();
-        showStatusModal({ type: 'lap', status: g.status, filterLabel: item.label });
-      });
-      rowsContainer.appendChild(row);
-    });
-
-    card.addEventListener('click', () => showStatusModal({ type: 'lap', status: g.status }));
-    container.appendChild(card);
-  });
-}
+// renderStatusLapCards removed — Status Lapangan Cards no longer used in UI
 
 document.getElementById('refreshBtn').addEventListener('click', async () => {
   await fetch('/api/refresh', { method: 'POST' });
