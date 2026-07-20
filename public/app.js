@@ -26,6 +26,11 @@ function fmtNumber(n) {
   return Number(n).toLocaleString('id-ID');
 }
 
+// Status "00. DROP" (or any numbering + "Drop") is excluded from potensi/nilai totals.
+function isDropStatus(status) {
+  return /^\s*\d*\.?\s*drop\b/i.test((status || '').toString());
+}
+
 function getStatusDisplay(status) {
   const text = (status || '').toString().trim();
   if (!text) return { label: '-', title: '' };
@@ -173,7 +178,7 @@ function selectGroup(groupName) {
   document.getElementById('pageSubtitle').innerHTML = `${title} &middot; Update terakhir: <span id="updatedAt">${new Date(dashboardData.updatedAt).toLocaleString('id-ID')}</span>`;
   render();
 }
- 
+
 // ensure group label active state when selecting individual menu or clearing
 function updateGroupLabelActive() {
   document.querySelectorAll('.menu-group-label').forEach(lbl => lbl.classList.remove('active'));
@@ -206,7 +211,8 @@ function computeStatusGroups(records) {
     if (!map.has(key)) map.set(key, { status: key, count: 0, total: 0, items: [] });
     const e = map.get(key);
     e.count += 1;
-    e.total += rec.value;
+    // DROP rows are still counted (LOP count) but excluded from the value total
+    if (!isDropStatus(rec.status)) e.total += rec.value;
     e.items.push(rec);
   });
   return Array.from(map.values()).sort((a, b) => {
@@ -217,18 +223,35 @@ function computeStatusGroups(records) {
   });
 }
 
+// Groups BAST-month data (column AS) by "YYYY-MM", respecting the current menu filter.
+// DROP rows are still counted as LOP but excluded from the value total, same rule as elsewhere.
+function computeBastTrend(records) {
+  const map = new Map();
+  records.forEach(rec => {
+    if (!rec.bastMonth || !rec.bastMonth.key) return;
+    const { key, label } = rec.bastMonth;
+    if (!map.has(key)) map.set(key, { key, label, count: 0, total: 0 });
+    const e = map.get(key);
+    e.count += 1;
+    if (!isDropStatus(rec.status)) e.total += rec.value;
+  });
+  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
+
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
   // build smile groups from the `status` column (same basis as the STATUS SMILE table)
   const rawStatusSmileGroups = computeStatusGroups(records);
   // hide Drop from cards but keep header/count consistent with table
-  const statusSmileGroups = rawStatusSmileGroups.filter(g => !/^\s*\d*\.?\s*drop\b/i.test((g.status || '').toString()));
+  const statusSmileGroups = rawStatusSmileGroups.filter(g => !isDropStatus(g.status));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
+  const bastTrend = computeBastTrend(records);
 
-  const totalPotensi = records.reduce((s, r) => s + r.value, 0);
+  // Total Potensi: DROP rows excluded from the value sum, still counted as LOP
+  const totalPotensi = records.reduce((s, r) => s + (isDropStatus(r.status) ? 0 : r.value), 0);
   document.getElementById('statPotensi').textContent = 'Rp ' + fmtMoney(totalPotensi);
   document.getElementById('statPotensiSub').textContent = fmtNumber(records.length) + ' LOP';
   // show total status count same as STATUS SMILE table
@@ -242,6 +265,7 @@ function render() {
   renderStatusTable(statusGroups);
   renderStatusFisikTable(statusLapGroups);
   renderStatusCards(statusSmileGroups);
+  renderBastTrend(bastTrend);
 }
 
 function renderProgressOverview(statusGroups, totalCount, statusLapGroups, records) {
@@ -261,20 +285,27 @@ function renderProgressOverview(statusGroups, totalCount, statusLapGroups, recor
       const v = (r.statusLap || '').toString().toLowerCase();
       return v.includes('golive') || v.includes('ut') || v.includes('pemberkasan');
     })
+    .filter(r => !isDropStatus(r.status))
     .reduce((s, r) => s + r.value, 0);
 
-    const cards = [
-      { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '', action: 'all' },
-      { icon: '🏷️', label: 'POTENSI (BULAN INI)', val: 'Rp ' + fmtMoney(potensiBulanIni), sub: 'Status Fisik', action: 'potensi' },
-      { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)', action: 'bast' },
-      { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(statusGroups.reduce((s, g) => s + g.total, 0)), sub: '', action: 'all' },
+  // TOTAL NILAI: DROP status group's total is excluded (its total is already 0 from computeStatusGroups,
+  // but filtered explicitly here too for clarity/safety)
+  const totalNilai = statusGroups
+    .filter(g => !isDropStatus(g.status))
+    .reduce((s, g) => s + g.total, 0);
+
+  const cards = [
+    { icon: '📊', label: 'TOTAL LOP', val: fmtNumber(totalCount), sub: '', action: 'all' },
+    { icon: '🏷️', label: 'POTENSI (BULAN INI)', val: 'Rp ' + fmtMoney(potensiBulanIni), sub: 'Status Fisik', action: 'potensi' },
+    { icon: '🥇', label: bastLabel, val: 'Rp ' + fmtMoney(bastValue), sub: '(Nilai BAST)', action: 'bast' },
+    { icon: '💰', label: 'TOTAL NILAI', val: 'Rp ' + fmtMoney(totalNilai), sub: '', action: 'all' },
   ];
 
   cards.forEach(c => {
     const div = document.createElement('div');
     div.className = 'progress-card';
     div.innerHTML = `<div class="icon">${c.icon}</div><div class="val">${c.val}</div><div class="lbl">${c.label}</div><div class="sub">${c.sub}</div>`;
-      div.style.cursor = 'pointer';
+    div.style.cursor = 'pointer';
     div.addEventListener('click', () => showProgressModal(c.action));
     summaryWrap.appendChild(div);
   });
@@ -336,12 +367,73 @@ function renderStatusFisikTable(statusGroups) {
   }
 }
 
-function openModal(title, rows, count, totalValue, fileName) {
-  const overlay = document.getElementById('modalOverlay');
-  const titleEl = document.getElementById('modalTitle');
-  const body = document.getElementById('modalBody');
+// ---- BAST trend (kolom AS) ----
+function renderBastTrend(trend) {
+  const container = document.getElementById('bastTrendBody');
+  if (!container) return;
+  container.innerHTML = '';
 
-  titleEl.textContent = title;
+  if (!trend || trend.length === 0) {
+    container.innerHTML = '<div style="color:#999; padding:16px; text-align:center;">Tidak ada data BAST (kolom AS kosong)</div>';
+    return;
+  }
+
+  const maxVal = Math.max(...trend.map(t => t.total), 1);
+
+  const chart = document.createElement('div');
+  chart.className = 'bast-trend-chart';
+
+  trend.forEach((t, i) => {
+    const barPct = Math.max((t.total / maxVal) * 100, 3);
+    const color = PALETTE[i % PALETTE.length].accent;
+
+    const col = document.createElement('div');
+    col.className = 'bast-trend-col';
+    col.innerHTML = `
+      <div class="bast-trend-value">Rp ${fmtMoney(t.total)}</div>
+      <div class="bast-trend-bar-track">
+        <div class="bast-trend-bar" style="height:${barPct}%; background:${color};"></div>
+      </div>
+      <div class="bast-trend-label">${t.label}</div>
+      <div class="bast-trend-count">${fmtNumber(t.count)} LOP</div>
+    `;
+    col.style.cursor = 'pointer';
+    col.addEventListener('click', () => showBastMonthModal(t));
+    chart.appendChild(col);
+  });
+
+  container.appendChild(chart);
+}
+
+function showBastMonthModal(t) {
+  const records = getFilteredRecords().filter(r => r.bastMonth && r.bastMonth.key === t.key);
+  const totalValue = records.reduce((s, r) => s + (isDropStatus(r.status) ? 0 : r.value), 0);
+  const fileName = createExportFileName('bast', t.label);
+  openModal(`Trend BAST - ${t.label}`, records, records.length, totalValue, fileName);
+}
+
+// ---- Modal: list view + click-through full detail ----
+let modalState = null; // { title, rows, count, totalValue, fileName }
+
+function openModal(title, rows, count, totalValue, fileName) {
+  modalState = { title, rows, count, totalValue, fileName };
+  renderModalListView();
+
+  const overlay = document.getElementById('modalOverlay');
+  overlay.style.display = 'flex';
+
+  const closeBtn = document.getElementById('modalClose');
+  const downloadBtn = document.getElementById('modalDownload');
+  function hide() { overlay.style.display = 'none'; }
+  closeBtn.onclick = hide;
+  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
+  downloadBtn.onclick = () => downloadExcelWithRaw(modalState.rows, modalState.fileName || 'export.xlsx');
+}
+
+function renderModalListView() {
+  const { title, rows, count, totalValue } = modalState;
+  document.getElementById('modalTitle').textContent = title;
+  const body = document.getElementById('modalBody');
 
   const summaryHtml = `
     <div class="modal-summary">
@@ -349,8 +441,8 @@ function openModal(title, rows, count, totalValue, fileName) {
       <div class="item">Total Nilai: <strong>Rp ${fmtMoney(totalValue)}</strong></div>
     </div>`;
 
-  const rowsHtml = rows.map(r => `
-    <tr>
+  const rowsHtml = rows.map((r, idx) => `
+    <tr class="modal-row" data-idx="${idx}" title="Klik untuk lihat detail lengkap">
       <td>${r.menu || '-'}</td>
       <td>${r.location || '-'}</td>
       <td>${r.pmta || '-'}</td>
@@ -360,7 +452,7 @@ function openModal(title, rows, count, totalValue, fileName) {
     </tr>
   `).join('');
 
-  const tableHtml = `
+  body.innerHTML = `
     ${summaryHtml}
     <table class="modal-table">
       <thead>
@@ -369,7 +461,7 @@ function openModal(title, rows, count, totalValue, fileName) {
           <th>Lokasi</th>
           <th>PM TA</th>
           <th>Status Smile</th>
-          <th>Status Lap</th>
+          <th>Status Fisik</th>
           <th style="text-align:right;">Nilai</th>
         </tr>
       </thead>
@@ -377,15 +469,36 @@ function openModal(title, rows, count, totalValue, fileName) {
     </table>
   `;
 
-  body.innerHTML = tableHtml;
-  overlay.style.display = 'flex';
+  body.querySelectorAll('tr.modal-row').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const idx = Number(tr.dataset.idx);
+      renderModalDetailView(modalState.rows[idx]);
+    });
+  });
+}
 
-  const closeBtn = document.getElementById('modalClose');
-  const downloadBtn = document.getElementById('modalDownload');
-  function hide() { overlay.style.display = 'none'; }
-  closeBtn.onclick = hide;
-  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
-  downloadBtn.onclick = () => downloadExcelWithRaw(rows, fileName || 'export.xlsx');
+function renderModalDetailView(record) {
+  const headerRow = (dashboardData && dashboardData.totals && dashboardData.totals.headerRow) || [];
+  const raw = record.raw || [];
+  const body = document.getElementById('modalBody');
+
+  document.getElementById('modalTitle').textContent = `Detail LOP${record.location ? ' - ' + record.location : ''}`;
+
+  const detailRowsHtml = headerRow.length
+    ? headerRow.map((h, i) => {
+        const val = raw[i] != null && raw[i] !== '' ? raw[i] : '-';
+        return `<tr><td class="detail-key">${h || `Kolom ${i + 1}`}</td><td class="detail-val">${val}</td></tr>`;
+      }).join('')
+    : raw.map((val, i) => `<tr><td class="detail-key">Kolom ${i + 1}</td><td class="detail-val">${val || '-'}</td></tr>`).join('');
+
+  body.innerHTML = `
+    <button id="modalBackBtn" class="modal-back-btn">← Kembali ke daftar</button>
+    <table class="modal-table detail-full-table">
+      <tbody>${detailRowsHtml || '<tr><td style="text-align:center;color:#999;">Tidak ada detail</td></tr>'}</tbody>
+    </table>
+  `;
+
+  document.getElementById('modalBackBtn').addEventListener('click', renderModalListView);
 }
 
 function showProgressModal(action) {
@@ -404,7 +517,7 @@ function showProgressModal(action) {
     title = 'Semua Data';
   }
 
-  const totalValue = records.reduce((s, r) => s + r.value, 0);
+  const totalValue = records.reduce((s, r) => s + (isDropStatus(r.status) ? 0 : r.value), 0);
   const count = records.length;
   const fileName = createExportFileName('progress', title);
   openModal(title, records, count, totalValue, fileName);
@@ -415,7 +528,7 @@ function normalizeFileName(name) {
 }
 
 function createExportFileName(type, status, filterLabel) {
-  const base = type === 'lap' ? 'status_lap' : 'status_smile';
+  const base = type === 'lap' ? 'status_lap' : (type === 'bast' ? 'trend_bast' : 'status_smile');
   const statusKey = normalizeFileName(status || 'all');
   const labelKey = filterLabel ? `_${normalizeFileName(filterLabel)}` : '';
   return `${base}_${statusKey}${labelKey}.xlsx`;
@@ -452,10 +565,10 @@ function showStatusModal({type, status, filterLabel}) {
   });
 
   const title = type === 'lap'
-    ? `Status Lapangan: ${status}${labelNeedle ? ` • ${filterLabel}` : ''}`
+    ? `Status Fisik: ${status}${labelNeedle ? ` • ${filterLabel}` : ''}`
     : `Status Smile: ${status}${labelNeedle ? ` • ${filterLabel}` : ''}`;
 
-  const totalValue = records.reduce((sum, r) => sum + r.value, 0);
+  const totalValue = records.reduce((sum, r) => sum + (isDropStatus(r.status) ? 0 : r.value), 0);
   const count = records.length;
   const fileName = createExportFileName(type, status, filterLabel);
   openModal(title, records, count, totalValue, fileName);
@@ -481,11 +594,11 @@ function renderStatusCards(statusGroups) {
 
   orderedGroups.forEach((g) => {
     // skip Drop status cards (do not display)
-    if (/^\s*\d*\.?\s*drop\b/i.test((g.status || '').toString())) return;
+    if (isDropStatus(g.status)) return;
     let originalIndex = statusGroups.findIndex(group => group.status === g.status);
     if (originalIndex === -1) originalIndex = 0;
     const color = PALETTE[originalIndex % PALETTE.length] || PALETTE[0];
-    
+
     // Extract unique PM TAs from items
     const pmtaMap = new Map();
     if (g.items) {
@@ -496,14 +609,14 @@ function renderStatusCards(statusGroups) {
       });
     }
     const uniquePMTAs = Array.from(pmtaMap.keys()).filter(p => p !== '-');
-    
+
     const card = document.createElement('div');
     card.className = 'status-card-free';
     card.style.borderLeft = `5px solid ${color.accent}`;
-    
+
     // Clean, modern design: just show key metrics
     const statusLabel = g.status.replace(/^\s*\d+\.?\s*/, ''); // Remove leading numbers
-    
+
     let pmtaHtml = '';
     if (uniquePMTAs.length === 0) {
       pmtaHtml = '<div style="font-size:11px; color:#888; margin-top:8px;">Tidak ada PM TA</div>';
@@ -515,7 +628,7 @@ function renderStatusCards(statusGroups) {
         ${uniquePMTAs.map(pmta => `<span class="pmta-chip" data-pmta="${pmta}" data-status="${g.status}" style="font-size:11px; padding:5px 10px; background:${color.accent}; color:white; border-radius:12px; white-space:nowrap; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.opacity='0.8'; this.style.transform='scale(1.05)';" onmouseout="this.style.opacity='1'; this.style.transform='scale(1)';">${pmta}</span>`).join('')}
       </div>`;
     }
-    
+
     card.innerHTML = `
       <div class="card-top" style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:0;">
         <div style="flex:1;">
@@ -537,7 +650,7 @@ function renderStatusCards(statusGroups) {
         ${pmtaHtml}
       </div>
     `;
-    
+
     card.style.cursor = 'pointer';
     card.style.transition = 'all 0.2s ease';
     card.addEventListener('mouseenter', () => {
@@ -559,7 +672,7 @@ function renderStatusCards(statusGroups) {
         showStatusModal({ type: 'smile', status: g.status });
       }
     });
-    
+
     container.appendChild(card);
   });
 }

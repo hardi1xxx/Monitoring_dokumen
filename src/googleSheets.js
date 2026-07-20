@@ -13,17 +13,25 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Monitoring_Data';
 // E = PM TA (sub status)
 // F = ID IHLD
 // H = Nama lokasi
-// R = Status Smile
+// V = Status Fisik  -> exposed as record.statusLap (matches existing frontend field name)
+// W = Status Smile  -> exposed as record.status
+// AS = Bulan BAST (untuk trend)
 const COL = {
-  MENU: 1,      // B -> index 1 (0-based)
-  PROJECT: 2,   // C -> index 2 (0-based)
-  VALUE: 10,    // K -> index 10
-  PM_TA: 4,     // E -> index 4
-  IHLD: 5,       // F -> index 5
-  LOCATION: 7,  // H -> index 7
-  STATUS: 21,   // W -> index 21
-  STATUS_LAP: 20 // v -> index 20
+  MENU: 1,        // B -> index 1 (0-based)
+  PROJECT: 2,     // C -> index 2 (0-based)
+  VALUE: 10,      // K -> index 10
+  PM_TA: 4,       // E -> index 4
+  IHLD: 5,        // F -> index 5
+  LOCATION: 7,    // H -> index 7
+  STATUS_LAP: 21, // V -> index 21 (Status Fisik)
+  STATUS: 22,     // W -> index 22 (Status Smile)
+  BAST_MONTH: 44  // AS -> index 44
 };
+
+// Same DROP-detection rule used on the frontend (matches "00. DROP", "00.DROP", "Drop", etc.)
+function isDropStatus(status) {
+  return /^\s*\d*\.?\s*drop\b/i.test((status || '').toString());
+}
 
 function colLetterToIndex(letter) {
   let result = 0;
@@ -39,7 +47,7 @@ async function fetchRawRows() {
 
   // Fetch from public Google Sheets CSV export (no authentication required)
   const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
-  
+
   const response = await fetch(csvUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch sheet: ${response.statusText}`);
@@ -51,7 +59,7 @@ async function fetchRawRows() {
     const result = [];
     let current = '';
     let insideQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       if (char === '"') {
@@ -99,18 +107,90 @@ function parseNumber(val) {
   return isNaN(n) ? 0 : n;
 }
 
+// Parse a month value from column AS. Accepts "Januari 2025", "2025-01",
+// "01/2025", "Jan-25", or a full date — normalizes to { key: "YYYY-MM", label }.
+const ID_MONTHS = ['januari','februari','maret','april','mei','juni','juli','agustus','september','oktober','november','desember'];
+const ID_MONTHS_SHORT = ['jan','feb','mar','apr','mei','jun','jul','agu','sep','okt','nov','des'];
+
+function monthLabel(mm) {
+  const idx = parseInt(mm, 10) - 1;
+  const name = ID_MONTHS[idx] || mm;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function parseBastMonth(val) {
+  if (!val) return null;
+  const raw = String(val).trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+
+  // "Januari 2025" / "Jan 2025" / "Jan-25"
+  for (let i = 0; i < ID_MONTHS.length; i++) {
+    if (lower.includes(ID_MONTHS[i]) || lower.includes(ID_MONTHS_SHORT[i])) {
+      const yearMatch = lower.match(/(\d{4}|\d{2})/);
+      if (yearMatch) {
+        let year = yearMatch[1];
+        if (year.length === 2) year = '20' + year;
+        const mm = String(i + 1).padStart(2, '0');
+        return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+      }
+    }
+  }
+
+  // "YYYY-MM" or "YYYY/MM"
+  let m = raw.match(/^(\d{4})[\/-](\d{1,2})$/);
+  if (m) {
+    const year = m[1];
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+  }
+
+  // "MM/YYYY" or "MM-YYYY"
+  m = raw.match(/^(\d{1,2})[\/-](\d{4})$/);
+  if (m) {
+    const mm = String(parseInt(m[1], 10)).padStart(2, '0');
+    const year = m[2];
+    return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+  }
+
+  // Full date "DD/MM/YYYY" or "DD-MM-YYYY"
+  m = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (m) {
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    const year = m[3];
+    return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+  }
+  // ISO "YYYY-MM-DD"
+  m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const year = m[1];
+    const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+    return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+  }
+
+  // Fallback: let JS try to parse it (e.g. Google Sheets serial-date strings)
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return { key: `${year}-${mm}`, label: `${monthLabel(mm)} ${year}` };
+  }
+
+  return null;
+}
+
 async function getDashboardData() {
   const rows = await fetchRawRows();
   if (rows.length < 2) {
-    return { menus: [], statuses: [], records: [], totals: {} };
+    return { menus: [], statuses: [], records: [], totals: {}, bastTrend: [] };
   }
 
   const header = rows[0];
   const dataRows = rows.slice(1).filter(r => r && r.length > 0 && r.join('').trim() !== '');
 
   const records = dataRows.map(r => {
-    const status = (r[COL.STATUS] || '').toString().trim();
-    const statusLap = (r[COL.STATUS_LAP] || '').toString().trim();
+    const status = (r[COL.STATUS] || '').toString().trim();       // Status Smile (W)
+    const statusLap = (r[COL.STATUS_LAP] || '').toString().trim(); // Status Fisik (V)
     const pmta = (r[COL.PM_TA] || '').toString().trim();
     const ihld = (r[COL.IHLD] || '').toString().trim();
     const location = (r[COL.LOCATION] || '').toString().trim();
@@ -118,17 +198,24 @@ async function getDashboardData() {
     const project = (r[COL.PROJECT] || '').toString().trim();
     const projectGroup = project ? project.split(/\s+/)[0] : ''; // Extract first word
     const hasPMTA = pmta !== '' || /PM\s*TA/i.test(r.join(' '));
+    const bastRaw = (r[COL.BAST_MONTH] || '').toString().trim();
+    const bastMonth = parseBastMonth(bastRaw);
+    const value = parseNumber(r[COL.VALUE]);
+    const isDrop = isDropStatus(status);
 
     return {
       menu,
       projectGroup,
-      value: parseNumber(r[COL.VALUE]),
-      status,
-      statusLap,
+      value,
+      status,       // Status Smile (W)
+      statusLap,    // Status Fisik (V)
       pmta,
       ihld,
       location,
       hasPMTA,
+      isDrop,
+      bastRaw,
+      bastMonth,    // { key: 'YYYY-MM', label } or null
       raw: r
     };
   }).filter(rec => rec.menu !== '' || rec.status !== '' || (rec.statusLap && rec.statusLap !== ''));
@@ -144,27 +231,33 @@ async function getDashboardData() {
       menuGroups.get(group).push(rec.menu);
     }
   });
-  
+
   const groupedMenus = Array.from(menuGroups.entries()).map(([group, items]) => ({
     group,
     items
   }));
 
-  // Status groups with count + sum of value
+  // Status Smile groups with count + sum of value (DROP excluded from total value)
   const statusMap = new Map();
   records.forEach(rec => {
     const key = rec.status || '(Belum ada status)';
     if (!statusMap.has(key)) statusMap.set(key, { status: key, count: 0, total: 0 });
     const entry = statusMap.get(key);
     entry.count += 1;
-    entry.total += rec.value;
+    if (!rec.isDrop) entry.total += rec.value;
   });
-
   const statuses = Array.from(statusMap.values()).sort((a, b) => b.count - a.count);
+
+  // Total Potensi: sum of value EXCLUDING "00. DROP" status rows (LOP count still includes them)
+  const totalPotensi = records.reduce((s, r) => s + (r.isDrop ? 0 : r.value), 0);
+  const totalDropCount = records.filter(r => r.isDrop).length;
+  const totalDropValue = records.reduce((s, r) => s + (r.isDrop ? r.value : 0), 0);
 
   const totals = {
     totalLOP: records.length,
-    totalPotensi: records.reduce((s, r) => s + r.value, 0),
+    totalPotensi,
+    totalDropCount,
+    totalDropValue,
     totalStatus: statuses.length,
     totalBranch: menuSet.length,
     headerRow: header
