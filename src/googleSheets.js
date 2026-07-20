@@ -19,10 +19,10 @@ const COL = {
   PROJECT: 2,   // C -> index 2 (0-based)
   VALUE: 10,    // K -> index 10
   PM_TA: 4,     // E -> index 4
-  IHLD: 5,      // F -> index 5
+  IHLD: 5,       // F -> index 5
   LOCATION: 7,  // H -> index 7
-  STATUS: 17,   // R -> index 17
-  STATUS_LAP: 16 // Q -> index 16
+  STATUS: 21,   // W -> index 21
+  STATUS_LAP: 20 // v -> index 20
 };
 
 function colLetterToIndex(letter) {
