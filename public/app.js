@@ -245,26 +245,26 @@ function computeBastTrend(records) {
   return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
 }
 
-// Builds a Lokasi x Status matrix: for every location, how many LOP (and how much value)
+// Builds a PM TA x Status matrix: for every PM TA, how many LOP (and how much value)
 // sit in each status column. DROP status is excluded entirely (not a useful column here).
 function computeLocationStatusMatrix(records, statuses) {
-  const locMap = new Map();
+  const pmtaMap = new Map();
   records.forEach(rec => {
     if (isDropStatus(rec.status)) return;
-    const loc = (rec.location || '').toString().trim() || '(Tanpa lokasi)';
-    if (!locMap.has(loc)) {
+    const pmta = (rec.pmta || '').toString().trim() || '(Tanpa PM TA)';
+    if (!pmtaMap.has(pmta)) {
       const statusCells = {};
       statuses.forEach(s => { statusCells[s] = { count: 0, total: 0 }; });
-      locMap.set(loc, { location: loc, statuses: statusCells, totalCount: 0, totalValue: 0 });
+      pmtaMap.set(pmta, { location: pmta, statuses: statusCells, totalCount: 0, totalValue: 0 });
     }
-    const entry = locMap.get(loc);
+    const entry = pmtaMap.get(pmta);
     if (!entry.statuses[rec.status]) entry.statuses[rec.status] = { count: 0, total: 0 };
     entry.statuses[rec.status].count += 1;
     entry.statuses[rec.status].total += rec.value;
     entry.totalCount += 1;
     entry.totalValue += rec.value;
   });
-  return Array.from(locMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+  return Array.from(pmtaMap.values()).sort((a, b) => b.totalCount - a.totalCount);
 }
 
 function render() {
@@ -610,32 +610,32 @@ function showStatusDetail(status) {
   detailPanel.innerHTML = '';
 }
 
-// Opens the modal for a single Lokasi x Status cell (exact location + exact status match).
-function showLocationStatusModal(location, status) {
+// Opens the modal for a single PM TA x Status cell (exact PM TA + exact status match).
+function showLocationStatusModal(pmta, status) {
   const records = getFilteredRecords().filter(r => {
-    const recLoc = (r.location || '').toString().trim() || '(Tanpa lokasi)';
-    return recLoc === location && r.status === status;
+    const recPmta = (r.pmta || '').toString().trim() || '(Tanpa PM TA)';
+    return recPmta === pmta && r.status === status;
   });
   const totalValue = records.reduce((sum, r) => sum + (isDropStatus(r.status) ? 0 : r.value), 0);
   const count = records.length;
-  const fileName = createExportFileName('smile', status, location);
-  openModal(`${location} • ${shortStatusLabel(status)}`, records, count, totalValue, fileName);
+  const fileName = createExportFileName('smile', status, pmta);
+  openModal(`${pmta} • ${shortStatusLabel(status)}`, records, count, totalValue, fileName);
 }
 
-// Opens the modal for every record at a given location, across all statuses.
-function showLocationModal(location) {
+// Opens the modal for every record under a given PM TA, across all statuses.
+function showLocationModal(pmta) {
   const records = getFilteredRecords().filter(r => {
-    const recLoc = (r.location || '').toString().trim() || '(Tanpa lokasi)';
-    return recLoc === location && !isDropStatus(r.status);
+    const recPmta = (r.pmta || '').toString().trim() || '(Tanpa PM TA)';
+    return recPmta === pmta && !isDropStatus(r.status);
   });
   const totalValue = records.reduce((sum, r) => sum + (isDropStatus(r.status) ? 0 : r.value), 0);
   const count = records.length;
-  const fileName = createExportFileName('smile', 'semua_status', location);
-  openModal(`${location} • Semua status`, records, count, totalValue, fileName);
+  const fileName = createExportFileName('smile', 'semua_status', pmta);
+  openModal(`${pmta} • Semua status`, records, count, totalValue, fileName);
 }
 
-// Renders the "DETAIL STATUS PROGRESS" panel as a Lokasi x Status matrix table.
-// Rows = location, columns = status (in the same order as STATUS SMILE), each filled
+// Renders the "DETAIL STATUS PROGRESS" panel as a PM TA x Status matrix table.
+// Rows = PM TA, columns = status (in the same order as STATUS SMILE), each filled
 // cell shows LOP count on top and value below. Click a cell to see the underlying LOP list.
 function renderStatusMatrix(records, statusGroups) {
   const thead = document.getElementById('statusMatrixHead');
@@ -652,7 +652,7 @@ function renderStatusMatrix(records, statusGroups) {
   }
 
   const headRow = document.createElement('tr');
-  headRow.innerHTML = `<th class="matrix-loc-col">Lokasi</th>` +
+  headRow.innerHTML = `<th class="matrix-loc-col">PM TA</th>` +
     statuses.map(s => `<th>${shortStatusLabel(s)}</th>`).join('') +
     `<th class="matrix-total-col">Total</th>`;
   thead.appendChild(headRow);
@@ -679,7 +679,7 @@ function renderStatusMatrix(records, statusGroups) {
     }).join('');
 
     tr.innerHTML = `
-      <td class="matrix-loc-col" data-loc="${row.location}" title="Klik untuk lihat semua status di lokasi ini"><strong>${row.location}</strong></td>
+      <td class="matrix-loc-col" data-loc="${row.location}" title="Klik untuk lihat semua status PM TA ini"><strong>${row.location}</strong></td>
       ${cellsHtml}
       <td class="matrix-total-col">
         <div class="matrix-cell-lop">${fmtNumber(row.totalCount)} LOP</div>
