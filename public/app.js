@@ -31,6 +31,12 @@ function isDropStatus(status) {
   return /^\s*\d*\.?\s*drop\b/i.test((status || '').toString());
 }
 
+// Broader match used only for the DETAIL STATUS PROGRESS matrix: excludes both
+// "00. DROP" and "18. PLAN DROP" (or any status containing the word "drop").
+function isDropOrPlanDropStatus(status) {
+  return /drop/i.test((status || '').toString());
+}
+
 function getStatusDisplay(status) {
   const text = (status || '').toString().trim();
   if (!text) return { label: '-', title: '' };
@@ -246,11 +252,12 @@ function computeBastTrend(records) {
 }
 
 // Builds a PM TA x Status matrix: for every PM TA, how many LOP (and how much value)
-// sit in each status column. DROP status is excluded entirely (not a useful column here).
+// sit in each status column. DROP and PLAN DROP statuses are excluded entirely (not
+// useful columns for this table).
 function computeLocationStatusMatrix(records, statuses) {
   const pmtaMap = new Map();
   records.forEach(rec => {
-    if (isDropStatus(rec.status)) return;
+    if (isDropOrPlanDropStatus(rec.status)) return;
     const pmta = (rec.pmta || '').toString().trim() || '(Tanpa PM TA)';
     if (!pmtaMap.has(pmta)) {
       const statusCells = {};
@@ -274,6 +281,8 @@ function render() {
   const rawStatusSmileGroups = computeStatusGroups(records);
   // hide Drop from the matrix but keep header/count consistent with table
   const statusSmileGroups = rawStatusSmileGroups.filter(g => !isDropStatus(g.status));
+  // DETAIL STATUS PROGRESS matrix additionally hides Plan Drop as a column
+  const statusMatrixGroups = statusSmileGroups.filter(g => !isDropOrPlanDropStatus(g.status));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
@@ -293,7 +302,7 @@ function render() {
   renderProgressOverview(statusGroups, records.length, statusLapGroups, records);
   renderStatusTable(statusGroups);
   renderStatusFisikTable(statusLapGroups);
-  renderStatusMatrix(records, statusSmileGroups);
+  renderStatusMatrix(records, statusMatrixGroups);
   renderBastTrend(bastTrend);
 }
 
