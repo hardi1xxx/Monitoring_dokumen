@@ -105,9 +105,14 @@
           <div class="panel">
             <div class="panel-header">DETAIL STATUS PROGRESS</div>
             <div class="panel-body">
-              <div class="card-section-title">Status Smile Cards</div>
-              <div id="statusCards" class="status-cards"></div>
-              <!-- Status Lapangan Cards removed per request -->
+              <div class="card-section-title">Lokasi &times; Status Smile</div>
+              <div class="matrix-table-wrap">
+                <table class="matrix-table" id="statusMatrixTable">
+                  <thead id="statusMatrixHead"></thead>
+                  <tbody id="statusMatrixBody"></tbody>
+                </table>
+              </div>
+              <div class="matrix-legend">Baris atas tiap sel = LOP, baris bawah = nilai. Klik sel untuk lihat detail.</div>
             </div>
           </div>
         </div>

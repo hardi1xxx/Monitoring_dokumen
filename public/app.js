@@ -42,6 +42,13 @@ function getStatusDisplay(status) {
   };
 }
 
+// Strips the leading numbering (e.g. "01. ") from a status string, used for compact column headers.
+function shortStatusLabel(status) {
+  const text = (status || '').toString().trim();
+  const normalized = text.replace(/^\s*\d+(?:\.\d+)?\s*\.?\s*/, '').trim();
+  return normalized || text || '-';
+}
+
 async function loadData() {
   try {
     const res = await fetch('/api/dashboard');
@@ -238,12 +245,34 @@ function computeBastTrend(records) {
   return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
 }
 
+// Builds a Lokasi x Status matrix: for every location, how many LOP (and how much value)
+// sit in each status column. DROP status is excluded entirely (not a useful column here).
+function computeLocationStatusMatrix(records, statuses) {
+  const locMap = new Map();
+  records.forEach(rec => {
+    if (isDropStatus(rec.status)) return;
+    const loc = (rec.location || '').toString().trim() || '(Tanpa lokasi)';
+    if (!locMap.has(loc)) {
+      const statusCells = {};
+      statuses.forEach(s => { statusCells[s] = { count: 0, total: 0 }; });
+      locMap.set(loc, { location: loc, statuses: statusCells, totalCount: 0, totalValue: 0 });
+    }
+    const entry = locMap.get(loc);
+    if (!entry.statuses[rec.status]) entry.statuses[rec.status] = { count: 0, total: 0 };
+    entry.statuses[rec.status].count += 1;
+    entry.statuses[rec.status].total += rec.value;
+    entry.totalCount += 1;
+    entry.totalValue += rec.value;
+  });
+  return Array.from(locMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+}
+
 function render() {
   const records = getFilteredRecords();
   const statusGroups = computeStatusGroups(records);
   // build smile groups from the `status` column (same basis as the STATUS SMILE table)
   const rawStatusSmileGroups = computeStatusGroups(records);
-  // hide Drop from cards but keep header/count consistent with table
+  // hide Drop from the matrix but keep header/count consistent with table
   const statusSmileGroups = rawStatusSmileGroups.filter(g => !isDropStatus(g.status));
   const statusLapGroups = computeStatusGroups(records.map(r => ({ ...r, status: r.statusLap })));
   const pmtaGroups = computeStatusGroups(records.filter(r => r.hasPMTA));
@@ -264,7 +293,7 @@ function render() {
   renderProgressOverview(statusGroups, records.length, statusLapGroups, records);
   renderStatusTable(statusGroups);
   renderStatusFisikTable(statusLapGroups);
-  renderStatusCards(statusSmileGroups);
+  renderStatusMatrix(records, statusSmileGroups);
   renderBastTrend(bastTrend);
 }
 
@@ -581,103 +610,98 @@ function showStatusDetail(status) {
   detailPanel.innerHTML = '';
 }
 
-function renderStatusCards(statusGroups) {
-  const container = document.getElementById('statusCards');
-  container.innerHTML = '';
+// Opens the modal for a single Lokasi x Status cell (exact location + exact status match).
+function showLocationStatusModal(location, status) {
+  const records = getFilteredRecords().filter(r => {
+    const recLoc = (r.location || '').toString().trim() || '(Tanpa lokasi)';
+    return recLoc === location && r.status === status;
+  });
+  const totalValue = records.reduce((sum, r) => sum + (isDropStatus(r.status) ? 0 : r.value), 0);
+  const count = records.length;
+  const fileName = createExportFileName('smile', status, location);
+  openModal(`${location} • ${shortStatusLabel(status)}`, records, count, totalValue, fileName);
+}
 
-  if (!statusGroups || statusGroups.length === 0) {
-    container.innerHTML = '<div style="color:#999; padding:12px;">Tidak ada kartu status</div>';
+// Opens the modal for every record at a given location, across all statuses.
+function showLocationModal(location) {
+  const records = getFilteredRecords().filter(r => {
+    const recLoc = (r.location || '').toString().trim() || '(Tanpa lokasi)';
+    return recLoc === location && !isDropStatus(r.status);
+  });
+  const totalValue = records.reduce((sum, r) => sum + (isDropStatus(r.status) ? 0 : r.value), 0);
+  const count = records.length;
+  const fileName = createExportFileName('smile', 'semua_status', location);
+  openModal(`${location} • Semua status`, records, count, totalValue, fileName);
+}
+
+// Renders the "DETAIL STATUS PROGRESS" panel as a Lokasi x Status matrix table.
+// Rows = location, columns = status (in the same order as STATUS SMILE), each filled
+// cell shows LOP count on top and value below. Click a cell to see the underlying LOP list.
+function renderStatusMatrix(records, statusGroups) {
+  const thead = document.getElementById('statusMatrixHead');
+  const tbody = document.getElementById('statusMatrixBody');
+  if (!thead || !tbody) return;
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+
+  const statuses = statusGroups.map(g => g.status);
+
+  if (statuses.length === 0) {
+    tbody.innerHTML = '<tr><td style="text-align:center;color:#999;padding:16px;">Tidak ada data</td></tr>';
     return;
   }
 
-  const orderedGroups = [...statusGroups].sort((a, b) => parseStatusOrder(b.status) - parseStatusOrder(a.status) || b.status.localeCompare(a.status));
+  const headRow = document.createElement('tr');
+  headRow.innerHTML = `<th class="matrix-loc-col">Lokasi</th>` +
+    statuses.map(s => `<th>${shortStatusLabel(s)}</th>`).join('') +
+    `<th class="matrix-total-col">Total</th>`;
+  thead.appendChild(headRow);
 
-  orderedGroups.forEach((g) => {
-    // skip Drop status cards (do not display)
-    if (isDropStatus(g.status)) return;
-    let originalIndex = statusGroups.findIndex(group => group.status === g.status);
-    if (originalIndex === -1) originalIndex = 0;
-    const color = PALETTE[originalIndex % PALETTE.length] || PALETTE[0];
+  const matrix = computeLocationStatusMatrix(records, statuses);
 
-    // Extract unique PM TAs from items
-    const pmtaMap = new Map();
-    if (g.items) {
-      g.items.forEach(item => {
-        const pmta = (item.pmta || '-').toString().trim();
-        if (!pmtaMap.has(pmta)) pmtaMap.set(pmta, 0);
-        pmtaMap.set(pmta, pmtaMap.get(pmta) + 1);
-      });
-    }
-    const uniquePMTAs = Array.from(pmtaMap.keys()).filter(p => p !== '-');
+  if (matrix.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${statuses.length + 2}" style="text-align:center;color:#999;padding:16px;">Tidak ada data</td></tr>`;
+    return;
+  }
 
-    const card = document.createElement('div');
-    card.className = 'status-card-free';
-    card.style.borderLeft = `5px solid ${color.accent}`;
+  matrix.forEach(row => {
+    const tr = document.createElement('tr');
 
-    // Clean, modern design: just show key metrics
-    const statusLabel = g.status.replace(/^\s*\d+\.?\s*/, ''); // Remove leading numbers
-
-    let pmtaHtml = '';
-    if (uniquePMTAs.length === 0) {
-      pmtaHtml = '<div style="font-size:11px; color:#888; margin-top:8px;">Tidak ada PM TA</div>';
-    } else if (uniquePMTAs.length === 1) {
-      pmtaHtml = `<div class="pmta-chip" data-pmta="${uniquePMTAs[0]}" data-status="${g.status}" style="font-size:12px; color:#555; margin-top:8px; padding:6px 8px; background:#f0f1f6; border-radius:4px; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.background='${color.accent}'; this.style.color='white';" onmouseout="this.style.background='#f0f1f6'; this.style.color='#555';">${uniquePMTAs[0]}</div>`;
-    } else {
-      // Free design: show all PM TAs as chips (no truncation)
-      pmtaHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
-        ${uniquePMTAs.map(pmta => `<span class="pmta-chip" data-pmta="${pmta}" data-status="${g.status}" style="font-size:11px; padding:5px 10px; background:${color.accent}; color:white; border-radius:12px; white-space:nowrap; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.opacity='0.8'; this.style.transform='scale(1.05)';" onmouseout="this.style.opacity='1'; this.style.transform='scale(1)';">${pmta}</span>`).join('')}
-      </div>`;
-    }
-
-    card.innerHTML = `
-      <div class="card-top" style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:0;">
-        <div style="flex:1;">
-          <div class="card-status-name" style="font-size:13px; color:${color.accent}; font-weight:600; margin-bottom:2px;">
-            ${statusLabel}
-          </div>
-          <div class="card-lop-count" style="font-size:18px; font-weight:700; color:#1a2c4a;">
-            ${fmtNumber(g.count)}
-          </div>
-          <div class="card-lop-label" style="font-size:11px; color:#888; margin-top:2px;">LOP</div>
-        </div>
-        <div style="text-align:right;">
-          <div class="card-value" style="font-size:14px; font-weight:700; color:${color.accent};">
-            Rp ${fmtMoney(g.total)}
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:8px;">
-        ${pmtaHtml}
-      </div>
-    `;
-
-    card.style.cursor = 'pointer';
-    card.style.transition = 'all 0.2s ease';
-    card.addEventListener('mouseenter', () => {
-      card.style.boxShadow = '0 6px 16px rgba(15,27,76,0.12)';
-      card.style.transform = 'translateY(-2px)';
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.boxShadow = '0 1px 4px rgba(15,27,76,0.06)';
-      card.style.transform = 'translateY(0)';
-    });
-    card.addEventListener('click', (e) => {
-      // Check if a PM TA chip was clicked
-      if (e.target.classList.contains('pmta-chip')) {
-        e.stopPropagation();
-        const pmta = e.target.dataset.pmta;
-        const status = e.target.dataset.status;
-        showStatusModal({ type: 'smile', status, filterLabel: pmta });
-      } else {
-        showStatusModal({ type: 'smile', status: g.status });
+    const cellsHtml = statuses.map(s => {
+      const cell = row.statuses[s] || { count: 0, total: 0 };
+      if (cell.count === 0) {
+        return `<td class="matrix-cell empty">–</td>`;
       }
-    });
+      return `<td class="matrix-cell filled" data-loc="${row.location}" data-status="${s}" title="Klik untuk lihat detail">
+        <div class="matrix-cell-lop">${fmtNumber(cell.count)}</div>
+        <div class="matrix-cell-val">Rp ${fmtMoney(cell.total)}</div>
+      </td>`;
+    }).join('');
 
-    container.appendChild(card);
+    tr.innerHTML = `
+      <td class="matrix-loc-col" data-loc="${row.location}" title="Klik untuk lihat semua status di lokasi ini"><strong>${row.location}</strong></td>
+      ${cellsHtml}
+      <td class="matrix-total-col">
+        <div class="matrix-cell-lop">${fmtNumber(row.totalCount)} LOP</div>
+        <div class="matrix-cell-val">Rp ${fmtMoney(row.totalValue)}</div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.matrix-cell.filled').forEach(td => {
+    td.addEventListener('click', () => {
+      showLocationStatusModal(td.dataset.loc, td.dataset.status);
+    });
+  });
+
+  tbody.querySelectorAll('.matrix-loc-col[data-loc]').forEach(td => {
+    td.style.cursor = 'pointer';
+    td.addEventListener('click', () => {
+      showLocationModal(td.dataset.loc);
+    });
   });
 }
-
-// renderStatusLapCards removed — Status Lapangan Cards no longer used in UI
 
 document.getElementById('refreshBtn').addEventListener('click', async () => {
   await fetch('/api/refresh', { method: 'POST' });

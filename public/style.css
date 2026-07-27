@@ -375,7 +375,7 @@ body {
 .status-table tr.clickable-status:hover { background: rgba(15,27,76,0.03); }
 .status-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
 
-/* Status cards (right column) */
+/* Status cards (legacy, kept in case reused elsewhere) */
 .status-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(240px, 1fr));
@@ -384,7 +384,6 @@ body {
   grid-auto-rows: minmax(min-content, max-content);
 }
 
-/* Modern free-form card design */
 .status-card-free {
   background: #ffffff;
   border-radius: 10px;
@@ -423,29 +422,110 @@ body {
   font-size: 14px;
 }
 
-/* Legacy card styles (kept for compatibility if needed) */
-.status-card {
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  padding: 14px 16px;
-  color: var(--text-dark);
-  transition: box-shadow 0.2s ease;
-}
-
-.status-card:hover {
-  box-shadow: 0 10px 20px rgba(15,27,76,0.12);
-}
-
-.status-card .header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 8px;
-  font-weight: 700;
+/* DETAIL STATUS PROGRESS: Lokasi x Status matrix table */
+.card-section-title {
   font-size: 13px;
-  margin-bottom: 4px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text-dark);
+}
+
+.matrix-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.matrix-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 640px;
+  font-size: 12px;
+}
+
+.matrix-table thead th {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfd;
+  white-space: nowrap;
+}
+
+.matrix-table thead th.matrix-loc-col {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fafbfd;
+  border-right: 1px solid var(--border);
+}
+
+.matrix-table thead th.matrix-total-col {
+  text-align: right;
+}
+
+.matrix-table tbody tr {
+  border-top: 1px solid #f0f1f6;
+}
+
+.matrix-table td {
+  padding: 6px 5px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.matrix-table td.matrix-loc-col {
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  font-size: 12.5px;
+  z-index: 1;
+}
+
+.matrix-table td.matrix-total-col {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.matrix-cell.empty {
+  color: #c7cbdb;
+}
+
+.matrix-cell.filled {
+  background: #DDEBFB;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.matrix-cell.filled:hover {
+  background: #c3ddf7;
+}
+
+.matrix-cell-lop {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #185FA5;
+  line-height: 1.3;
+}
+
+.matrix-cell-val {
+  font-size: 10px;
+  color: #4C8FE0;
+  line-height: 1.3;
+}
+
+.matrix-legend {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .status-detail-panel {
@@ -534,12 +614,6 @@ body {
 }
 .status-card .row-item:hover {
   background: rgba(76, 143, 224, 0.12);
-}
-.card-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 10px;
-  color: var(--text-dark);
 }
 
 /* BAST trend (kolom AS) */
