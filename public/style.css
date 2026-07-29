@@ -344,8 +344,8 @@ body {
   text-align: center;
   border-radius: 10px;
   padding: 10px 6px;
-  background: #fafbfd;
-  border: 1px solid var(--border);
+  background: var(--card-bg);
+  box-shadow: 0 1px 4px rgba(15,27,76,0.08);
 }
 .progress-card .icon { font-size: 20px; }
 .progress-card .val { font-size: 15px; font-weight: 700; margin-top: 2px; }
@@ -526,6 +526,39 @@ body {
   margin-top: 10px;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.matrix-table tfoot tr.matrix-total-row {
+  border-top: 2px solid var(--border);
+  background: #fafbfd;
+}
+
+.matrix-table tfoot td {
+  padding: 8px 5px;
+}
+
+.matrix-table tfoot td.matrix-loc-col {
+  position: sticky;
+  left: 0;
+  background: #fafbfd;
+  border-right: 1px solid var(--border);
+}
+
+.matrix-table tfoot .matrix-foot-cell {
+  background: transparent;
+  cursor: default;
+}
+
+.matrix-table tfoot .matrix-cell-lop {
+  color: var(--text-dark);
+}
+
+.matrix-table tfoot .matrix-cell-val {
+  color: var(--text-muted);
+}
+
+.matrix-table tfoot td.matrix-total-col {
+  font-weight: 700;
 }
 
 .status-detail-panel {

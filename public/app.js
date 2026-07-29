@@ -37,6 +37,74 @@ function isDropOrPlanDropStatus(status) {
   return /drop/i.test((status || '').toString());
 }
 
+// Statuses that must NOT be counted into TOTAL POTENSI / TOTAL NILAI, but must still
+// appear as normal rows (with their own real nilai) in STATUS FISIK & STATUS SMILE.
+function isExcludedFromTotals(status) {
+  const normalized = (status || '').toString()
+    .replace(/^\s*\d+(?:\.\d+)?\s*\.?\s*/, '')
+    .trim()
+    .toLowerCase();
+  return normalized === 'drop' || normalized === 'hold' || normalized === 'plan drop';
+}
+
+// --- Column overrides: pull Status Fisik / Status Smile / tanggal BAST directly from
+// specific spreadsheet columns using the raw row array already sent per record
+// (the same `raw` array used by the Excel export and detail modal).
+// 0-based index: column W = 22, column X = 23, column AU = 46.
+const COL_STATUS_FISIK = 22; // kolom W
+const COL_STATUS_SMILE = 23; // kolom X
+const COL_BAST_DATE = 46;    // kolom AU
+
+function getRawColumnValue(rec, index) {
+  if (rec && Array.isArray(rec.raw) && rec.raw[index] != null && rec.raw[index] !== '') {
+    return rec.raw[index];
+  }
+  return null;
+}
+
+// Parses common date formats (DD/MM/YYYY, YYYY-MM-DD, or an Excel serial date number)
+// coming from a raw sheet cell into a JS Date, or null if it can't be parsed.
+function parseFlexibleDate(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date && !isNaN(value.getTime())) return value;
+  if (typeof value === 'number') {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(excelEpoch.getTime() + value * 86400000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const str = value.toString().trim();
+  let m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  m = str.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getBastMonthFromColumn(rec) {
+  const raw = getRawColumnValue(rec, COL_BAST_DATE);
+  const date = parseFlexibleDate(raw);
+  if (!date) return null;
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const label = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+  return { key, label };
+}
+
+// Applies the column overrides to one record: Status Fisik <- kolom W, Status Smile <- kolom X,
+// bulan BAST <- kolom AU. Falls back to the original backend-computed field if the raw cell
+// is empty, so nothing breaks if a row genuinely has no value there.
+function applyColumnOverrides(rec) {
+  const statusSmile = getRawColumnValue(rec, COL_STATUS_SMILE);
+  const statusFisik = getRawColumnValue(rec, COL_STATUS_FISIK);
+  const bastMonth = getBastMonthFromColumn(rec);
+  return {
+    ...rec,
+    status: statusSmile != null ? statusSmile : rec.status,
+    statusLap: statusFisik != null ? statusFisik : rec.statusLap,
+    bastMonth: bastMonth || rec.bastMonth
+  };
+}
+
 function getStatusDisplay(status) {
   const text = (status || '').toString().trim();
   if (!text) return { label: '-', title: '' };
@@ -236,7 +304,7 @@ function computeStatusGroups(records) {
   });
 }
 
-// Groups BAST-month data (column AS) by "YYYY-MM", respecting the current menu filter.
+// Groups BAST-month data (column AU) by "YYYY-MM", respecting the current menu filter.
 // DROP rows are still counted as LOP but excluded from the value total, same rule as elsewhere.
 function computeBastTrend(records) {
   const map = new Map();
@@ -275,7 +343,9 @@ function computeLocationStatusMatrix(records, statuses) {
 }
 
 function render() {
-  const records = getFilteredRecords();
+  const baseRecords = getFilteredRecords();
+  // pull Status Fisik (kolom W), Status Smile (kolom X), bulan BAST (kolom AU) langsung dari raw
+  const records = baseRecords.map(applyColumnOverrides);
   const statusGroups = computeStatusGroups(records);
   // build smile groups from the `status` column (same basis as the STATUS SMILE table)
   const rawStatusSmileGroups = computeStatusGroups(records);
@@ -288,8 +358,9 @@ function render() {
   const summaryGroups = pmtaGroups.length ? pmtaGroups : statusGroups;
   const bastTrend = computeBastTrend(records);
 
-  // Total Potensi: DROP rows excluded from the value sum, still counted as LOP
-  const totalPotensi = records.reduce((s, r) => s + (isDropStatus(r.status) ? 0 : r.value), 0);
+  // Total Potensi: Hold, Plan Drop, dan Drop dikecualikan dari total nilai (tetap dihitung LOP-nya
+  // dan tetap muncul sebagai baris normal di STATUS FISIK & STATUS SMILE).
+  const totalPotensi = records.reduce((s, r) => s + (isExcludedFromTotals(r.status) ? 0 : r.value), 0);
   document.getElementById('statPotensi').textContent = 'Rp ' + fmtMoney(totalPotensi);
   document.getElementById('statPotensiSub').textContent = fmtNumber(records.length) + ' LOP';
   // show total status count same as STATUS SMILE table
@@ -323,13 +394,13 @@ function renderProgressOverview(statusGroups, totalCount, statusLapGroups, recor
       const v = (r.statusLap || '').toString().toLowerCase();
       return v.includes('golive') || v.includes('ut') || v.includes('pemberkasan');
     })
-    .filter(r => !isDropStatus(r.status))
+    .filter(r => !isExcludedFromTotals(r.status))
     .reduce((s, r) => s + r.value, 0);
 
-  // TOTAL NILAI: DROP status group's total is excluded (its total is already 0 from computeStatusGroups,
-  // but filtered explicitly here too for clarity/safety)
+  // TOTAL NILAI: Drop, Hold, dan Plan Drop dikecualikan dari total nilai (tetap tampil
+  // sebagai baris normal di STATUS SMILE dengan nilainya masing-masing).
   const totalNilai = statusGroups
-    .filter(g => !isDropStatus(g.status))
+    .filter(g => !isExcludedFromTotals(g.status))
     .reduce((s, g) => s + g.total, 0);
 
   const cards = [
@@ -649,9 +720,11 @@ function showLocationModal(pmta) {
 function renderStatusMatrix(records, statusGroups) {
   const thead = document.getElementById('statusMatrixHead');
   const tbody = document.getElementById('statusMatrixBody');
+  const tfoot = document.getElementById('statusMatrixFoot');
   if (!thead || !tbody) return;
   thead.innerHTML = '';
   tbody.innerHTML = '';
+  if (tfoot) tfoot.innerHTML = '';
 
   const statuses = statusGroups.map(g => g.status);
 
@@ -710,6 +783,39 @@ function renderStatusMatrix(records, statusGroups) {
       showLocationModal(td.dataset.loc);
     });
   });
+
+  // Footer: sum LOP + Nilai per status column, plus a grand total.
+  if (tfoot) {
+    const colTotals = statuses.map(s => matrix.reduce((acc, row) => {
+      const cell = row.statuses[s] || { count: 0, total: 0 };
+      acc.count += cell.count;
+      acc.total += cell.total;
+      return acc;
+    }, { count: 0, total: 0 }));
+
+    const grandCount = matrix.reduce((s, row) => s + row.totalCount, 0);
+    const grandValue = matrix.reduce((s, row) => s + row.totalValue, 0);
+
+    const footCellsHtml = colTotals.map(c => {
+      if (c.count === 0) return `<td class="matrix-cell empty matrix-foot-cell">–</td>`;
+      return `<td class="matrix-cell matrix-foot-cell">
+        <div class="matrix-cell-lop">${fmtNumber(c.count)}</div>
+        <div class="matrix-cell-val">Rp ${fmtMoney(c.total)}</div>
+      </td>`;
+    }).join('');
+
+    const footRow = document.createElement('tr');
+    footRow.className = 'matrix-total-row';
+    footRow.innerHTML = `
+      <td class="matrix-loc-col"><strong>Total</strong></td>
+      ${footCellsHtml}
+      <td class="matrix-total-col">
+        <div class="matrix-cell-lop">${fmtNumber(grandCount)} LOP</div>
+        <div class="matrix-cell-val">Rp ${fmtMoney(grandValue)}</div>
+      </td>
+    `;
+    tfoot.appendChild(footRow);
+  }
 }
 
 document.getElementById('refreshBtn').addEventListener('click', async () => {
